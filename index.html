@@ -187,6 +187,20 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .pin-me { background: #16181d; font-size: 10px; }
 .lines li.strong { font-weight: 700; }
 .lines li.sub { font-size: 0.85rem; color: var(--muted); border-top: 0; padding-top: 0; }
+/* Welcome card for QR visitors (?qr): quote, save the contact or write on WhatsApp. */
+.sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; padding: 16px;
+  background: rgba(8, 15, 26, .62); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: fadeIn .25s ease-out both; }
+.sheet-card { position: relative; width: 100%; max-width: 440px; border-radius: 24px; padding: 22px 20px 20px; color: #fff; text-align: center;
+  background: radial-gradient(120% 80% at 50% 100%, #12324a 0%, #0c1a2b 55%, #080f1a 100%); box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  animation: sheetUp .45s cubic-bezier(.16, .84, .3, 1) both; }
+@keyframes sheetUp { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
+.sheet-x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color: #fff; font-size: 0.95rem; cursor: pointer; }
+.sheet-car { display: block; width: 70%; max-width: 260px; margin: 2px auto 6px; filter: drop-shadow(0 12px 12px rgba(0,0,0,.5)); }
+.sheet h2 { margin: 0; font-size: 1.5rem; letter-spacing: -0.02em; }
+.sheet p { margin: 4px 0 14px; color: #b9c4d3; font-size: 0.92rem; }
+.sheet .btn { margin-top: 10px; text-decoration: none; font-size: 1.02rem; }
+.btn.outline { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18); }
+.cap a { font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; background: rgba(60,196,156,.16); border: 1px solid rgba(60,196,156,.35); color: #7fe0c0; text-decoration: none; }
 .hidden { display: none; }
 </style>
 </head>
@@ -337,6 +351,18 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 
   <p class="small">Mapa © colaboradores de OpenStreetMap.</p>
 </main>
+
+<div class="sheet hidden" id="welcome" role="dialog" aria-modal="true" aria-labelledby="w-title">
+  <div class="sheet-card">
+    <button type="button" class="sheet-x" id="w-close" aria-label="Cerrar">✕</button>
+    <img class="sheet-car" src="img/x70.png" alt="">
+    <h2 id="w-title">Hola 👋 soy Leonardo</h2>
+    <p id="w-sub"></p>
+    <button type="button" class="btn primary" id="w-quote">🚐 Cotizar y reservar</button>
+    <a class="btn outline" id="w-save" href="contacto.vcf">📇 Guardar contacto</a>
+    <a class="btn outline" id="w-wa" target="_blank" rel="noopener">💬 Escribir por WhatsApp</a>
+  </div>
+</div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <!-- Always the latest code: GitHub Pages lets browsers keep files 10 min and Safari even longer. -->
 <script type="module">import(`./app.js?v=${Date.now()}`);</script>

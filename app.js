@@ -39,7 +39,7 @@ function fitBags() {
 }
 $('pax').addEventListener('change', fitBags);
 fitBags();
-$('cap').innerHTML = `<span>👥 ${SEATS} pasajeros</span><span>🧳 hasta ${maxBags(1)} maletas</span>`;
+$('cap').innerHTML = `<span>👥 ${SEATS} pasajeros</span><span>🧳 hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">📇 Guardar contacto</a>`;
 
 // Default: today, next full hour (Chile time).
 const now = Date.now(), nextHour = Math.min(23, Math.floor(clMinOfDay(now) / 60) + 1);
@@ -427,6 +427,17 @@ if (params.has('yo')) store.set('conductor', '1');
 if (params.has('cliente')) store.set('conductor', null);
 const driver = params.has('yo') || store.get('conductor') === '1';
 if (driver) $('vehicle').textContent += ' · modo conductor';
+// QR visitors (?qr) land on a welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
+if (params.has('qr')) {
+  const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
+  $('w-title').textContent = `Hola 👋 soy ${CONFIG.nombre.split(' ')[0]}`;
+  $('w-sub').textContent = `${CONFIG.nombre} · traslados privados en ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`;
+  $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.`)}`;
+  $('w-close').onclick = close;
+  $('welcome').addEventListener('click', e => { if (e.target.id === 'welcome') close(); });
+  $('w-quote').onclick = () => { close(); $('form').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+  $('welcome').classList.remove('hidden');
+}
 if (picked.from && picked.to) $('form').requestSubmit();
 
 const hhmm = t => new Date(t).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' });

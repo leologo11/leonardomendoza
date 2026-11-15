@@ -45,7 +45,7 @@ import { CONFIG } from './config.js';
 document.getElementById('name').textContent = CONFIG.nombre;
 document.getElementById('vehicle').textContent = CONFIG.vehiculo;
 const input = document.getElementById('url'), box = document.getElementById('qr');
-input.value = new URL('./', location.href).href;
+input.value = new URL('./?qr', location.href).href;
 const draw = () => { box.innerHTML = ''; new QRCode(box, { text: input.value.trim(), width: 480, height: 480, correctLevel: QRCode.CorrectLevel.M }); };
 input.addEventListener('input', draw);
 draw();
