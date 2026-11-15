@@ -157,6 +157,17 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .nav { display: flex; gap: 8px; margin-top: 10px; }
 .nav a { flex: 1; text-align: center; text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; color: var(--text); font-size: 0.88rem; background: var(--bg); }
 .driver h3 { margin: 14px 0 0; font-size: 0.9rem; }
+.stop { margin-left: 10px; padding-left: 12px; border-left: 3px solid #7c3aed; border-radius: 0 0 0 4px; transition: background .4s; }
+.stop label { color: #7c3aed; font-weight: 600; }
+.stop.moved { background: rgba(124, 58, 237, .08); }
+.mini { flex: none; width: 40px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 10px; font: inherit; font-size: 1rem; cursor: pointer; }
+.mini:disabled { opacity: .3; cursor: default; }
+.mini.del { color: #c2410c; }
+.stop .with-btn { gap: 6px; }
+.stop-tools { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
+.link-btn { border: 1px dashed var(--line); background: transparent; color: var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+.link-btn:hover { background: var(--accent-soft); }
+.pin-stop { background: #7c3aed; }
 .driver { border: 2px dashed var(--accent); }
 .far { background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 4px; }
 .far strong { display: block; font-size: 1.6rem; letter-spacing: -0.01em; }
@@ -241,6 +252,12 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
       <div class="chosen" id="from-chosen"></div>
     </div>
 
+    <div id="stops"></div>
+    <div class="stop-tools">
+      <button type="button" class="link-btn" id="add-stop">＋ Agregar parada</button>
+      <button type="button" class="link-btn" id="swap" title="El destino pasa a ser el origen y al revés">⇅ Invertir viaje</button>
+    </div>
+
     <div class="place">
       <label for="to">¿A dónde vas?</label>
       <div class="with-btn">
@@ -273,7 +290,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 
   <section class="card hidden" id="result">
     <div id="map"></div>
-    <div class="small">Puedes arrastrar los puntos A y B para marcar el lugar exacto.</div>
+    <div class="small">Puedes arrastrar los puntos del mapa (A, paradas y B) para marcar el lugar exacto.</div>
     <div class="small" id="summary"></div>
     <p class="price" id="total"></p>
     <ul class="lines" id="lines"></ul>

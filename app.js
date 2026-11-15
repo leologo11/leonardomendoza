@@ -41,6 +41,8 @@ function choose(which, place) {
   $(`${which}-chosen`).textContent = place ? `✓ ${place.label}` : '';
   $(`${which}-results`).innerHTML = '';
   if (which === 'me' && place) driverCalc();
+  // Picking a stop once there's a price quotes again with it.
+  if (stops.includes(which) && place && quote) $('form').requestSubmit();
 }
 // Suggestions while typing come from Photon (made for search-as-you-type, near Santiago first);
 // if it doesn't answer, Nominatim on Enter / Buscar.
@@ -71,16 +73,72 @@ async function search(which, full = false) {
     const li = document.createElement('li');
     li.textContent = r.label;
     li.onmousedown = e => e.preventDefault();
-    li.onclick = () => { $(which).value = r.label.split(',').slice(0, 2).join(','); choose(which, r); };
+    li.onclick = () => { $(which).value = shortLabel(r.label); choose(which, r); };
     list.append(li);
   }
 }
-for (const which of ['from', 'to', 'me']) {
+function wire(which) {
   let timer;
   $(which).addEventListener('input', () => { choose(which, null); clearTimeout(timer); timer = setTimeout(() => search(which), 350); });
   $(which).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); search(which, true); } });
 }
+['from', 'to', 'me'].forEach(wire);
 document.querySelector('[data-search="to"]').onclick = () => search('to', true);
+const shortLabel = label => label.split(',').slice(0, 2).join(',');
+
+// ── Stops on the way, as many as wanted: ↑ ↓ change the order, ✕ removes one. Each searches like the
+// other fields; `stops` keeps their ids in trip order (their places live in `picked`). ──
+const stops = [];
+let stopN = 0;
+const requote = () => { if (quote && picked.from && picked.to) $('form').requestSubmit(); };
+function relabel() {
+  stops.forEach((id, i) => {
+    const row = $(`${id}-row`);
+    row.querySelector('label').textContent = `Parada ${i + 1}`;
+    row.querySelector('[data-act="up"]').disabled = i === 0;
+    row.querySelector('[data-act="down"]').disabled = i === stops.length - 1;
+    $('stops').append(row);
+  });
+  $('add-stop').textContent = stops.length ? '＋ Otra parada' : '＋ Agregar parada';
+}
+function addStop(place) {
+  const id = `s${++stopN}`, row = document.createElement('div');
+  stops.push(id);
+  row.className = 'place stop'; row.id = `${id}-row`;
+  row.innerHTML = `<label for="${id}"></label><div class="with-btn">
+    <input id="${id}" placeholder="Dirección de la parada" enterkeyhint="search">
+    <button type="button" class="mini" data-act="up" aria-label="Subir parada">↑</button>
+    <button type="button" class="mini" data-act="down" aria-label="Bajar parada">↓</button>
+    <button type="button" class="mini del" data-act="del" aria-label="Quitar parada">✕</button>
+  </div><ul class="results" id="${id}-results"></ul><div class="chosen" id="${id}-chosen"></div>`;
+  $('stops').append(row);
+  wire(id);
+  row.addEventListener('click', e => {
+    const act = e.target.dataset?.act, i = stops.indexOf(id);
+    if (!act) return;
+    if (act === 'del') { stops.splice(i, 1); delete picked[id]; row.remove(); }
+    else {
+      const j = act === 'up' ? i - 1 : i + 1;
+      if (j < 0 || j >= stops.length) return;
+      [stops[i], stops[j]] = [stops[j], stops[i]];
+      row.classList.add('moved'); setTimeout(() => row.classList.remove('moved'), 600);
+    }
+    relabel();
+    requote();
+  });
+  relabel();
+  if (place) { $(id).value = shortLabel(place.label); choose(id, place); } else $(id).focus();
+  return id;
+}
+$('add-stop').onclick = () => addStop();
+// The way back: the destination becomes the pickup, and the stops go in reverse.
+$('swap').onclick = () => {
+  const a = picked.from, b = picked.to, va = $('from').value, vb = $('to').value;
+  $('from').value = vb; $('to').value = va;
+  choose('from', b); choose('to', a);
+  stops.reverse(); relabel();
+  requote();
+};
 // ── "Where am I": the browser asks for permission the first time. If it was blocked, or the device has
 // location off, say how to fix it on that device. GPS first; if it's slow, the network fix.
 const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -124,12 +182,16 @@ async function placeName(lat, lng, fallback) {
 }
 
 // ── Route and price ─────────────────────────────────────────────────────────────────────────────
-async function route(a, b) {
-  const url = `https://router.project-osrm.org/route/v1/driving/${a.lng},${a.lat};${b.lng},${b.lat}?overview=full&geometries=geojson&annotations=duration`;
+// The route through every point in order (pickup, stops, destination).
+async function route(...pts) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${pts.map(p => `${p.lng},${p.lat}`).join(';')}?overview=full&geometries=geojson&annotations=duration`;
   const r = await (await fetch(url)).json();
   if (r.code !== 'Ok' || !r.routes?.length) throw new Error('No encontré una ruta entre esos lugares.');
   return r.routes[0];
 }
+// Seconds of each stretch of the whole geometry (one list per leg between stops, end to end).
+const durations = r => r.legs.flatMap(l => l.annotation.duration);
+const stopPlaces = () => stops.map(id => picked[id]).filter(Boolean);
 const at = (date, time) => { const [h, m] = time.split(':').map(Number); return clStartOfDay(date) + (h * 60 + m) * 60000; };
 
 // Traffic band at the departure time (CONFIG.horarios): holidays go as Sunday.
@@ -159,8 +221,8 @@ function draw(routes) {
   layer?.remove(); meLayer?.remove();
   const r = routes[0], line = L.polyline(r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#0f7b5f', weight: 5 });
   // The pickup and destination pins can be dragged to the exact spot: the trip is quoted again.
-  const pin = (which, text) => {
-    const m = L.marker([picked[which].lat, picked[which].lng], { draggable: true, icon: L.divIcon({ className: `pin pin-${which}`, html: text, iconSize: [28, 28] }) });
+  const pin = (which, text, kind = which) => {
+    const m = L.marker([picked[which].lat, picked[which].lng], { draggable: true, icon: L.divIcon({ className: `pin pin-${kind}`, html: text, iconSize: [28, 28] }) });
     m.on('dragend', async () => {
       const { lat, lng } = m.getLatLng(), label = await placeName(lat, lng, `${lat.toFixed(5)}, ${lng.toFixed(5)}`);
       $(which).value = label;
@@ -169,7 +231,8 @@ function draw(routes) {
     });
     return m;
   };
-  layer = L.featureGroup([line, pin('from', 'A'), pin('to', 'B')]).addTo(map);
+  const stopPins = stops.filter(id => picked[id]).map((id, i) => pin(id, String(i + 1), 'stop'));
+  layer = L.featureGroup([line, pin('from', 'A'), ...stopPins, pin('to', 'B')]).addTo(map);
   fitAll();
 }
 // The whole trip in view (and the driver's way to the pickup, when it's there).
@@ -186,6 +249,8 @@ $('form').addEventListener('submit', async e => {
   e.preventDefault();
   $('error').textContent = '';
   if (!picked.from || !picked.to) { $('error').textContent = 'Elige el origen y el destino de la lista (escribe y aprieta Buscar).'; return; }
+  const loose = stops.findIndex(id => !picked[id] && $(id).value.trim());
+  if (loose >= 0) { $('error').textContent = `Elige la parada ${loose + 1} de la lista, o quítala con ✕.`; return; }
   const round = $('round').checked;
   const start = at($('date').value, $('time').value);
   if (start < Date.now() - 600000) { $('error').textContent = 'La fecha y hora ya pasaron.'; return; }
@@ -194,9 +259,10 @@ $('form').addEventListener('submit', async e => {
   const btn = $('quote');
   btn.disabled = true; btn.textContent = 'Calculando…';
   try {
-    const legs = [await route(picked.from, picked.to)];
+    // Going: through the stops. Coming back (round trip): straight home.
+    const legs = [await route(picked.from, ...stopPlaces(), picked.to)];
     if (round) legs.push(await route(picked.to, picked.from));
-    const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, r.legs[0].annotation.duration, i ? back : start));
+    const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start));
     const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
     const bands = legs.map((r, i) => band(i ? back : start));
     const byKm = CONFIG.cargoBase + legs.reduce((s, r, i) => s + kmPrice(r.distance / 1000, CONFIG.tarifas[bands[i]]), 0);
@@ -210,8 +276,10 @@ $('form').addEventListener('submit', async e => {
       const ll = p => `${p.lat},${p.lng}`, a = picked.from, b = picked.to;
       $('nav-pick-g').href = `https://www.google.com/maps/dir/?api=1&destination=${ll(a)}&travelmode=driving`;
       $('nav-pick-w').href = `https://waze.com/ul?ll=${ll(a)}&navigate=yes`;
-      $('nav-trip-g').href = `https://www.google.com/maps/dir/?api=1&origin=${ll(a)}&destination=${ll(b)}&travelmode=driving`;
-      $('nav-trip-w').href = `https://waze.com/ul?ll=${ll(b)}&navigate=yes`;
+      // Google Maps takes the stops along; Waze only one point, so it goes to the first stop.
+      const way = stopPlaces();
+      $('nav-trip-g').href = `https://www.google.com/maps/dir/?api=1&origin=${ll(a)}&destination=${ll(b)}${way.length ? `&waypoints=${encodeURIComponent(way.map(ll).join('|'))}` : ''}&travelmode=driving`;
+      $('nav-trip-w').href = `https://waze.com/ul?ll=${ll(way[0] || b)}&navigate=yes`;
       $('me-far').classList.add('hidden');
       if (picked.me) driverCalc(); else locateMe();
     }
@@ -224,7 +292,8 @@ function show(legs, tolls) {
   $('result').classList.remove('hidden');
   draw(legs);
   const q = quote, h = Math.floor(q.min / 60), m = Math.round(q.min % 60);
-  $('summary').textContent = `${q.km.toFixed(1)} km${q.round ? ' (ida y vuelta)' : ''} · ${h ? `${h} h ` : ''}${m} min de viaje`;
+  const n = stopPlaces().length;
+  $('summary').textContent = `${q.km.toFixed(1)} km${q.round ? ' (ida y vuelta)' : ''}${n ? ` · ${plural(n, 'parada', 'paradas')}` : ''} · ${h ? `${h} h ` : ''}${m} min de viaje`;
   $('total').textContent = money(q.total);
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
@@ -263,6 +332,7 @@ $('book').onclick = () => {
     !!who && `*${who}*`,
     '',
     `📍 *Desde:* ${picked.from.label}`,
+    ...stopPlaces().map((s, i) => `🛑 *Parada ${i + 1}:* ${s.label}`),
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
@@ -285,7 +355,9 @@ function tripLink() {
   const c = p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
   const v = [c(picked.from), c(picked.to), stamp($('date').value, $('time').value), $('pax').value, $('bags').value];
   if ($('round').checked) v.push(stamp($('rdate').value, $('rtime').value || $('time').value));
-  return `${location.origin}${location.pathname}?v=${v.join(',')}`;
+  // Stops in order: &s=lat,lng;lat,lng
+  const s = stopPlaces().map(c).join(';');
+  return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}`;
 }
 const params = new URLSearchParams(location.search);
 const short = (params.get('v') || '').split(',');
@@ -301,6 +373,12 @@ if (short.length >= 7) {
   [$('date').value, $('time').value] = unstamp(when);
   $('pax').value = p; $('bags').value = b;
   if (back) { $('round').checked = true; $('return-row').classList.remove('hidden'); [$('rdate').value, $('rtime').value] = unstamp(back); }
+  for (const s of (params.get('s') || '').split(';').filter(Boolean)) {
+    const [lat, lng] = s.split(',').map(Number);
+    if (!isFinite(lat) || !isFinite(lng)) continue;
+    const place = { lat, lng, label: `${lat}, ${lng}` }, id = addStop(place);
+    placeName(lat, lng, place.label).then(label => { place.label = label; $(id).value = label; $(`${id}-chosen`).textContent = `✓ ${label}`; });
+  }
 }
 for (const [k, which] of [['o', 'from'], ['d', 'to']]) {
   const [lat, lng] = (params.get(k) || '').split(',').map(Number);
@@ -333,7 +411,7 @@ async function driverCalc() {
   if (!quote || !me) return;
   $('me-status').textContent = 'Calculando…';
   try {
-    const q = quote, tolls = (r, t) => routeTolls(r.geometry.coordinates, r.legs[0].annotation.duration, t).total;
+    const q = quote, tolls = (r, t) => routeTolls(r.geometry.coordinates, durations(r), t).total;
     // To the pickup: leave so as to arrive on time (or now, if that's already late).
     const go = await route(me, picked.from), leave = Math.max(Date.now(), q.start - go.duration * 1000);
     // Back to where I am now, from where the client is left (the pickup when it's a round trip).
