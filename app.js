@@ -331,6 +331,11 @@ const fmtWhen = t => {
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 $('book').onclick = () => {
   if (!quote) return;
+  // Cash or transfer: required, it goes in the message.
+  const pay = document.querySelector('input[name="pay"]:checked')?.value;
+  document.querySelector('.pay').classList.toggle('missing', !pay);
+  $('book-error').textContent = pay ? '' : 'Elige cómo vas a pagar: efectivo o transferencia.';
+  if (!pay) return;
   const q = quote, who = $('who').value.trim(), note = $('note').value.trim(), pax = +$('pax').value, bags = +$('bags').value;
   // TAG grouped by highway (both legs together): "Costanera Norte $1.321 · Ruta 68 $5.400".
   const roads = new Map();
@@ -349,6 +354,7 @@ $('book').onclick = () => {
     `💵 *Total: ${money(q.total)}*`,
     `• Viaje${q.round ? ' ida y vuelta' : ''}: ${money(q.trip)}`,
     CONFIG.sumarPeajes && (tag ? `• TAG ${money(q.toll)}: ${tag}` : '• Sin TAG ni peajes'),
+    `${pay === 'Efectivo' ? '💵' : '🏦'} *Pago:* ${pay}`,
     !!note && `📝 ${note}`,
     '',
     `Ver viaje: ${tripLink()}`,
@@ -459,3 +465,4 @@ async function driverCalc() {
     $('me-status').textContent = err.message || 'No se pudo calcular.';
   }
 }
+document.querySelector('.pay').addEventListener('change', () => { document.querySelector('.pay').classList.remove('missing'); $('book-error').textContent = ''; });
