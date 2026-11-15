@@ -32,45 +32,63 @@ const GANTRY_M = 15, PLAZA_M = 5;
 // The terminal area of Santiago's airport (terminals and their parking), well away from Costanera Norte.
 const AIRPORT = { lat: -33.3945, lng: -70.7905, radius: 1200 };
 
+// Each gantry / plaza booth by its OpenStreetMap node id.
+const GANTRY_BY_NODE = new Map(GANTRIES.map(g => [g.osm, g]));
+const PLAZA_BY_NODE = new Map(TOLL_PLAZAS.flatMap(pz => pz.nodes.map(([osm]) => [osm, pz])));
+
 // coords: [[lng, lat], …] of the route; durations: seconds of each stretch between them; start: ms.
-export function routeTolls(coords, durations, start) {
+// nodes: the OpenStreetMap node of each coordinate (the router's annotations=nodes). With them a gantry
+// is charged only when the route goes through its very node: a street beside the highway, or the
+// avenue right above Vespucio Oriente's tunnel, isn't. Without them, by distance (15 m / 5 m).
+export function routeTolls(coords, durations, start, nodes = null) {
   const pts = [];
   let t = start;
   coords.forEach(([lng, lat], i) => { pts.push({ lat, lng, t }); t += (durations[i] || 0) * 1000; });
   const items = [], seen = new Set(), avo = [];
-  for (let i = 1; i < pts.length; i++) {
+  const gantry = (g, b, mv) => {
+    if (g.oneway && Math.abs(((mv - g.brg + 540) % 360) - 180) > 60) return;
+    if (AVO_NODES.has(g.osm)) {
+      const ref = AVO_NODES.get(g.osm);
+      if (!avo.length || b.t - avo[avo.length - 1].t > 900000 || avo[avo.length - 1].osm !== g.osm) avo.push({ ...g, ref, t: b.t });
+      return;
+    }
+    // One charge per tramo (its twin lanes / tunnel and surface gantries are the same tramo).
+    const row = TOLL_BY_NODE.get(g.osm), key = row ? row.key : `g${g.osm}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    if (row) {
+      const p = tollPrice(row, when(b.t));
+      items.push({ t: b.t, road: row.highway, name: `${row.ref ? `${row.ref} ` : ''}${row.tramo}`, band: p.band, price: Math.round(p.amount) });
+    } else {
+      const band = refBand(b.t);
+      items.push({ t: b.t, road: g.road === '?' ? 'Autopista' : g.road, name: g.name || '', band, price: REF[band], reference: true });
+    }
+  };
+  const plaza = (pz, b, mv) => {
+    const key = `P:${pz.key}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const p = plazaPrice(pz, when(b.t), Math.sin((mv * Math.PI) / 180) < 0);
+    items.push({ t: b.t, road: pz.highway, name: pz.name, band: p.band, price: p.amount, kind: pz.kind, free: pz.free, key: pz.key });
+  };
+  if (nodes) {
+    nodes.forEach((osm, i) => {
+      const g = GANTRY_BY_NODE.get(osm), pz = PLAZA_BY_NODE.get(osm);
+      if (!g && !pz) return;
+      // Direction of travel through that node.
+      const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + (i ? 0 : 1))], mv = bearing(a, b);
+      if (g) gantry(g, pts[i], mv);
+      if (pz) plaza(pz, pts[i], mv);
+    });
+  } else for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1], b = pts[i];
     if (meters(a, b) < 0.5) continue;
     const mv = bearing(a, b);
     for (const g of GANTRIES) {
       if (Math.abs(g.lat - a.lat) > 0.02 || Math.abs(g.lng - a.lng) > 0.02) continue;
-      if (segDist(g, a, b) > GANTRY_M) continue;
-      if (g.oneway && Math.abs(((mv - g.brg + 540) % 360) - 180) > 60) continue;
-      if (AVO_NODES.has(g.osm)) {
-        const ref = AVO_NODES.get(g.osm);
-        if (!avo.length || b.t - avo[avo.length - 1].t > 900000 || avo[avo.length - 1].osm !== g.osm) avo.push({ ...g, ref, t: b.t });
-        continue;
-      }
-      // One charge per tramo (its twin lanes / tunnel and surface gantries are the same tramo).
-      const row = TOLL_BY_NODE.get(g.osm), key = row ? row.key : `g${g.osm}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (row) {
-        const p = tollPrice(row, when(b.t));
-        items.push({ t: b.t, road: row.highway, name: `${row.ref ? `${row.ref} ` : ''}${row.tramo}`, band: p.band, price: Math.round(p.amount) });
-      } else {
-        const band = refBand(b.t);
-        items.push({ t: b.t, road: g.road === '?' ? 'Autopista' : g.road, name: g.name || '', band, price: REF[band], reference: true });
-      }
+      if (segDist(g, a, b) <= GANTRY_M) gantry(g, b, mv);
     }
-    for (const pz of TOLL_PLAZAS) {
-      const key = `P:${pz.key}`;
-      if (seen.has(key)) continue;
-      if (!pz.nodes.some(([, lat, lng]) => segDist({ lat, lng }, a, b) < PLAZA_M)) continue;
-      seen.add(key);
-      const p = plazaPrice(pz, when(b.t), Math.sin((mv * Math.PI) / 180) < 0);
-      items.push({ t: b.t, road: pz.highway, name: pz.name, band: p.band, price: p.amount, kind: pz.kind, free: pz.free, key: pz.key });
-    }
+    for (const pz of TOLL_PLAZAS) if (pz.nodes.some(([, lat, lng]) => segDist({ lat, lng }, a, b) < PLAZA_M)) plaza(pz, b, mv);
   }
   items.push(...avoTrips(avo));
   // The airport: the map's router often goes in by a street without the Acceso Vial AMB gantry, but

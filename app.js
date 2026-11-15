@@ -199,13 +199,15 @@ async function placeName(lat, lng, fallback) {
 // ── Route and price ─────────────────────────────────────────────────────────────────────────────
 // The route through every point in order (pickup, stops, destination).
 async function route(...pts) {
-  const url = `https://router.project-osrm.org/route/v1/driving/${pts.map(p => `${p.lng},${p.lat}`).join(';')}?overview=full&geometries=geojson&annotations=duration`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${pts.map(p => `${p.lng},${p.lat}`).join(';')}?overview=full&geometries=geojson&annotations=duration,nodes`;
   const r = await (await fetch(url)).json();
   if (r.code !== 'Ok' || !r.routes?.length) throw new Error('No encontré una ruta entre esos lugares.');
   return r.routes[0];
 }
 // Seconds of each stretch of the whole geometry (one list per leg between stops, end to end).
 const durations = r => r.legs.flatMap(l => l.annotation.duration);
+// The road node of each coordinate (legs share their joining node), to tell which gantries it goes through.
+const nodesOf = r => r.legs.flatMap((l, i) => (i ? l.annotation.nodes.slice(1) : l.annotation.nodes));
 const stopPlaces = () => stops.map(id => picked[id]).filter(Boolean);
 const at = (date, time) => { const [h, m] = time.split(':').map(Number); return clStartOfDay(date) + (h * 60 + m) * 60000; };
 
@@ -282,7 +284,7 @@ $('form').addEventListener('submit', async e => {
     // Going: through the stops. Coming back (round trip): straight home.
     const legs = [await route(picked.from, ...stopPlaces(), picked.to)];
     if (round) legs.push(await route(picked.to, picked.from));
-    const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start));
+    const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start, nodesOf(r)));
     const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
     const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
     const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
@@ -437,7 +439,7 @@ async function driverCalc() {
   if (!quote || !me) return;
   $('me-status').textContent = 'Calculando…';
   try {
-    const q = quote, tolls = (r, t) => routeTolls(r.geometry.coordinates, durations(r), t).total;
+    const q = quote, tolls = (r, t) => routeTolls(r.geometry.coordinates, durations(r), t, nodesOf(r)).total;
     // To the pickup: leave so as to arrive on time (or now, if that's already late).
     const go = await route(me, picked.from), leave = Math.max(Date.now(), q.start - go.duration * 1000);
     // Back to where I am now, from where the client is left (the pickup when it's a round trip).
