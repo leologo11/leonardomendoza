@@ -174,10 +174,10 @@ $('form').addEventListener('submit', async e => {
     const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, r.legs[0].annotation.duration, i ? back : start));
     const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
     const bands = legs.map((r, i) => band(i ? back : start));
-    const raw = Math.max(CONFIG.minimo, CONFIG.cargoBase + legs.reduce((s, r, i) => s + kmPrice(r.distance / 1000, CONFIG.tarifas[bands[i]]), 0));
-    const trip = Math.ceil(raw / CONFIG.redondeo) * CONFIG.redondeo;
+    const byKm = CONFIG.cargoBase + legs.reduce((s, r, i) => s + kmPrice(r.distance / 1000, CONFIG.tarifas[bands[i]]), 0);
+    const trip = Math.ceil(Math.max(CONFIG.minimo, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
     const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
-    quote = { km, min, trip, toll, total: trip + toll, round, start, back, bands, legs };
+    quote = { km, min, trip, toll, total: trip + toll, round, start, back, bands, legs, tolls, minimum: byKm < CONFIG.minimo };
     show(legs, tolls);
     if (driver) {
       $('driver').classList.remove('hidden'); $('me-lines').innerHTML = '';
@@ -218,20 +218,33 @@ function show(legs, tolls) {
 }
 
 // ── Booking: opens WhatsApp with the trip already written. ────────────────────────────────────────
-const fmtWhen = t => new Date(t).toLocaleString('es-CL', { timeZone: 'America/Santiago', weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+// "dom 15 nov · 18:00"
+const fmtWhen = t => {
+  const o = { timeZone: 'America/Santiago' };
+  const day = new Date(t).toLocaleDateString('es-CL', { ...o, weekday: 'short', day: 'numeric', month: 'short' }).replace(/[.,]/g, '');
+  return `${day} · ${new Date(t).toLocaleTimeString('es-CL', { ...o, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
+};
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 $('book').onclick = () => {
   if (!quote) return;
-  const q = quote, who = $('who').value.trim(), note = $('note').value.trim();
+  const q = quote, who = $('who').value.trim(), note = $('note').value.trim(), pax = +$('pax').value, bags = +$('bags').value;
+  // TAG grouped by highway (both legs together): "Costanera Norte $1.321 · Ruta 68 $5.400".
+  const roads = new Map();
+  for (const c of q.tolls.flatMap(t => t.items)) roads.set(c.road, (roads.get(c.road) || 0) + c.price);
+  const tag = [...roads].map(([r, a]) => `${r} ${money(a)}`).join(' · ');
+  const rate = q.minimum ? 'tarifa mínima' : [...new Set(q.bands)].map(b => BAND_NAME[b]).join(' y ');
   const text = [
-    `Hola, quiero reservar un viaje${who ? `. Soy ${who}` : ''}.`,
+    `Hola ${CONFIG.nombre.split(' ')[0]} 👋 Quiero reservar un viaje.`,
+    !!who && `*${who}*`,
     '',
-    `📍 Desde: ${picked.from.label}`,
-    `🏁 Hasta: ${picked.to.label}`,
-    `🗓️ Ida: ${fmtWhen(q.start)}`,
-    q.round && `🔁 Vuelta: ${fmtWhen(q.back)}`,
-    `👥 Pasajeros: ${$('pax').value} · Maletas: ${$('bags').value}`,
-    `🚗 ${q.km.toFixed(1)} km`,
-    `💵 Precio cotizado: ${money(q.total)} (viaje ${money(q.trip)}${CONFIG.sumarPeajes ? ` + TAG/peajes ${money(q.toll)}` : ''})`,
+    `📍 *Desde:* ${picked.from.label}`,
+    `🏁 *Hasta:* ${picked.to.label}`,
+    `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
+    `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
+    '',
+    `💵 *Total: ${money(q.total)}*`,
+    `• Viaje${q.round ? ' ida y vuelta' : ''} ${q.km.toLocaleString('es-CL', { maximumFractionDigits: 1 })} km (${rate}): ${money(q.trip)}`,
+    CONFIG.sumarPeajes && (tag ? `• TAG ${money(q.toll)}: ${tag}` : '• Sin TAG ni peajes'),
     !!note && `📝 ${note}`,
     '',
     `Ver viaje: ${tripLink()}`,
@@ -239,14 +252,31 @@ $('book').onclick = () => {
   window.open(`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(text)}`, '_blank');
 };
 
-// ── The trip as a link: opening it fills the form and quotes again (on the driver's phone, with his costs). ──
-const pt = p => `${p.lat.toFixed(5)},${p.lng.toFixed(5)}`;
+// ── The trip as a short link: ?v=from lat,lng,to lat,lng,YYMMDDHHMM,passengers,bags[,return YYMMDDHHMM].
+// Opening it fills the form and quotes again (on the driver's phone, with his costs); the addresses are
+// looked up again from the coordinates. Older links (o, ol, d, dl, f, h…) still open.
+const stamp = (date, time) => `${date.slice(2).replace(/-/g, '')}${time.replace(':', '')}`;
 function tripLink() {
-  const s = new URLSearchParams({ o: pt(picked.from), ol: picked.from.label, d: pt(picked.to), dl: picked.to.label, f: $('date').value, h: $('time').value, p: $('pax').value, b: $('bags').value });
-  if ($('round').checked) { s.set('rf', $('rdate').value); s.set('rh', $('rtime').value || $('time').value); }
-  return `${location.origin}${location.pathname}?${s}`;
+  const c = p => `${p.lat.toFixed(4)},${p.lng.toFixed(4)}`;
+  const v = [c(picked.from), c(picked.to), stamp($('date').value, $('time').value), $('pax').value, $('bags').value];
+  if ($('round').checked) v.push(stamp($('rdate').value, $('rtime').value || $('time').value));
+  return `${location.origin}${location.pathname}?v=${v.join(',')}`;
 }
 const params = new URLSearchParams(location.search);
+const short = (params.get('v') || '').split(',');
+if (short.length >= 7) {
+  const [la1, ln1, la2, ln2, when, p, b, back] = short;
+  const unstamp = s => [`20${s.slice(0, 2)}-${s.slice(2, 4)}-${s.slice(4, 6)}`, `${s.slice(6, 8)}:${s.slice(8, 10)}`];
+  [['from', +la1, +ln1], ['to', +la2, +ln2]].forEach(([which, lat, lng]) => {
+    if (!isFinite(lat) || !isFinite(lng)) return;
+    const place = { lat, lng, label: `${lat}, ${lng}` };
+    choose(which, place);
+    placeName(lat, lng, place.label).then(label => { place.label = label; $(which).value = label; $(`${which}-chosen`).textContent = `✓ ${label}`; });
+  });
+  [$('date').value, $('time').value] = unstamp(when);
+  $('pax').value = p; $('bags').value = b;
+  if (back) { $('round').checked = true; $('return-row').classList.remove('hidden'); [$('rdate').value, $('rtime').value] = unstamp(back); }
+}
 for (const [k, which] of [['o', 'from'], ['d', 'to']]) {
   const [lat, lng] = (params.get(k) || '').split(',').map(Number);
   if (!isFinite(lat) || !isFinite(lng) || !params.get(k)) continue;
