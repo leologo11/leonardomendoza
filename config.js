@@ -8,11 +8,11 @@ export const CONFIG = {
   whatsapp: '56981430340',
 
   // Valor por km según la distancia: cada tramo de km a su precio.
-  // Ej: 40 km = 15 km a $1.000 + 15 km a $900 + 10 km a $800.
-  porKm: [{ desde: 0, valor: 1000 }, { desde: 15, valor: 900 }, { desde: 30, valor: 800 }, { desde: 100, valor: 700 }],
+  // Ej: 40 km = 15 km a $950 + 15 km a $855 + 10 km a $760.
+  porKm: [{ desde: 0, valor: 950 }, { desde: 15, valor: 855 }, { desde: 30, valor: 760 }, { desde: 100, valor: 665 }],
 
   // En hora punta, o si el viaje parte, para o llega en un lugar concurrido, TODO el viaje va a este valor por km.
-  tarifaAlta: 1000,
+  tarifaAlta: 950,
   horaPunta: ['07:00-10:00', '17:00-21:00'], // lunes a viernes (no festivos), hora de Chile
   // Lugares concurridos: nombre, posición y radio en metros alrededor.
   lugares: [
