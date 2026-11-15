@@ -1,7 +1,10 @@
 // Tus datos y tus precios. Cambia solo lo que está entre comillas o los números.
 export const CONFIG = {
   nombre: 'Leonardo Mendoza',
-  vehiculo: 'Jetour X70 blanca · 7 pasajeros',
+  vehiculo: 'Jetour X70 blanca',
+  // Maletas grandes que caben según cuántos pasajeros van (la 3.ª fila se abate). El máximo de pasajeros
+  // es el número más alto de esta lista (6 + el conductor = 7 asientos).
+  maletas: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 2, 6: 1 },
   // Foto de la camioneta (déjala en la carpeta img). Vacío ('') = sin foto.
   foto: 'img/x70.png',
   // Tu WhatsApp con código de país, sin + ni espacios (Chile: 569 + tu número).

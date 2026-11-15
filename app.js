@@ -8,7 +8,7 @@ import { clStartOfDay, clDay, clMinOfDay, clWeekday } from './data/clTime.js';
 
 const $ = id => document.getElementById(id);
 const money = n => `$${Math.round(n).toLocaleString('es-CL')}`;
-const SEATS = 7;
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
 $('name').textContent = CONFIG.nombre;
 $('vehicle').textContent = CONFIG.vehiculo;
@@ -26,8 +26,20 @@ if (CONFIG.foto) {
   img.onerror = drive;
   img.src = CONFIG.foto;
 } else drive();
+// Passengers and bags: the 3rd row folds down, so the more passengers, the fewer big bags fit (CONFIG.maletas).
+const SEATS = Math.max(...Object.keys(CONFIG.maletas).map(Number));
+const maxBags = pax => CONFIG.maletas[pax] ?? 0;
 for (let i = 1; i <= SEATS; i++) $('pax').add(new Option(i, i));
-for (let i = 0; i <= 8; i++) $('bags').add(new Option(i, i));
+function fitBags() {
+  const pax = +$('pax').value, max = maxBags(pax), was = +$('bags').value || 0;
+  $('bags').innerHTML = '';
+  for (let i = 0; i <= max; i++) $('bags').add(new Option(i, i));
+  $('bags').value = Math.min(was, max);
+  $('bags-hint').textContent = `Con ${plural(pax, 'pasajero', 'pasajeros')} caben hasta ${plural(max, 'maleta grande', 'maletas grandes')}${max < maxBags(1) ? ' (con asientos de la 3.ª fila arriba)' : ''}, más bolsos de mano.`;
+}
+$('pax').addEventListener('change', fitBags);
+fitBags();
+$('cap').innerHTML = `<span>👥 ${SEATS} pasajeros</span><span>🧳 hasta ${maxBags(1)} maletas</span>`;
 
 // Default: today, next full hour (Chile time).
 const now = Date.now(), nextHour = Math.min(23, Math.floor(clMinOfDay(now) / 60) + 1);
@@ -328,7 +340,6 @@ const fmtWhen = t => {
   const day = new Date(t).toLocaleDateString('es-CL', { ...o, weekday: 'short', day: 'numeric', month: 'short' }).replace(/[.,]/g, '');
   return `${day} · ${new Date(t).toLocaleTimeString('es-CL', { ...o, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })}`;
 };
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 $('book').onclick = () => {
   if (!quote) return;
   // Cash or transfer: required, it goes in the message.
@@ -386,7 +397,7 @@ if (short.length >= 7) {
     placeName(lat, lng, place.label).then(label => { place.label = label; $(which).value = label; $(`${which}-chosen`).textContent = `✓ ${label}`; });
   });
   [$('date').value, $('time').value] = unstamp(when);
-  $('pax').value = p; $('bags').value = b;
+  $('pax').value = Math.min(+p, SEATS); fitBags(); $('bags').value = Math.min(+b, maxBags(+$('pax').value));
   if (back) { $('round').checked = true; $('return-row').classList.remove('hidden'); [$('rdate').value, $('rtime').value] = unstamp(back); }
   for (const s of (params.get('s') || '').split(';').filter(Boolean)) {
     const [lat, lng] = s.split(',').map(Number);
@@ -404,8 +415,8 @@ for (const [k, which] of [['o', 'from'], ['d', 'to']]) {
 }
 if (params.get('f')) $('date').value = params.get('f');
 if (params.get('h')) $('time').value = params.get('h');
-if (params.get('p')) $('pax').value = params.get('p');
-if (params.get('b')) $('bags').value = params.get('b');
+if (params.get('p')) { $('pax').value = Math.min(+params.get('p'), SEATS); fitBags(); }
+if (params.get('b')) $('bags').value = Math.min(+params.get('b'), maxBags(+$('pax').value));
 if (params.get('rf')) { $('round').checked = true; $('return-row').classList.remove('hidden'); $('rdate').value = params.get('rf'); $('rtime').value = params.get('rh') || ''; }
 
 // ── Driver mode: opening the page once with ?yo turns it on for this phone (?cliente turns it off). ──

@@ -6,7 +6,7 @@
 <title>Cotiza tu viaje</title>
 <meta name="description" content="Cotiza y reserva tu traslado privado en Jetour X70 de 7 pasajeros.">
 <meta property="og:title" content="Leonardo Mendoza · Traslados privados">
-<meta property="og:description" content="Jetour X70 blanca, hasta 7 pasajeros. Precio al instante con TAG incluido y reserva por WhatsApp.">
+<meta property="og:description" content="Jetour X70 blanca, hasta 6 pasajeros y 5 maletas. Precio al instante con TAG incluido y reserva por WhatsApp.">
 <meta name="theme-color" content="#0f7b5f">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
@@ -110,6 +110,10 @@ main { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
   .go .sweep { opacity: 0; }
   .go .beam { animation: none; opacity: 1; }
 }
+/* Capacity inside the hero: "👥 6 pasajeros · 🧳 hasta 5 maletas". */
+.cap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; animation: fadeUp .6s .4s ease-out both; }
+.cap span { font-size: 0.8rem; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.16); color: #e3e9f1; }
+.bags-hint { font-size: 0.78rem; color: var(--muted); margin-top: 4px; min-height: 1em; }
 .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
 .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 7px 12px; font-size: 0.85rem; }
 .photo { padding: 0; overflow: hidden; }
@@ -193,6 +197,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
       <p class="kicker">Traslados privados</p>
       <h1 id="name">Traslados</h1>
       <p class="sub" id="vehicle"></p>
+      <div class="cap" id="cap"></div>
     </div>
     <div class="stage" id="stage" aria-hidden="true" title="Toca para verla llegar otra vez">
       <div class="glow"></div>
@@ -239,13 +244,6 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
     </div>
   </header>
 
-  <div class="chips fade-up">
-    <span class="chip">👥 Hasta 7 pasajeros</span>
-    <span class="chip">🛣️ Santiago y regiones</span>
-    <span class="chip">💳 TAG incluido en el precio</span>
-    <span class="chip">💬 Reserva por WhatsApp</span>
-  </div>
-
   <form id="form" class="card" autocomplete="off">
     <h2>Cotiza tu viaje</h2>
 
@@ -282,7 +280,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 
     <div class="row">
       <div><label for="pax">Pasajeros</label><select id="pax"></select></div>
-      <div><label for="bags">Maletas</label><select id="bags"></select></div>
+      <div><label for="bags">Maletas grandes</label><select id="bags"></select><div class="bags-hint" id="bags-hint"></div></div>
     </div>
 
     <label class="check"><input type="checkbox" id="round"> Ida y vuelta</label>
