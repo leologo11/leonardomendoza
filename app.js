@@ -81,15 +81,40 @@ for (const which of ['from', 'to', 'me']) {
   $(which).addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); clearTimeout(timer); search(which, true); } });
 }
 document.querySelector('[data-search="to"]').onclick = () => search('to', true);
-$('here').onclick = () => {
-  if (!navigator.geolocation) return;
-  $('from-chosen').textContent = 'Buscando tu ubicación…';
-  navigator.geolocation.getCurrentPosition(async p => {
-    const lat = p.coords.latitude, lng = p.coords.longitude, label = await placeName(lat, lng, 'Mi ubicación');
-    $('from').value = label;
-    choose('from', { lat, lng, label });
-  }, () => { $('from-chosen').textContent = 'No pude ver tu ubicación. Escribe la dirección.'; }, { enableHighAccuracy: true, timeout: 15000 });
-};
+// ── "Where am I": the browser asks for permission the first time. If it was blocked, or the device has
+// location off, say how to fix it on that device. GPS first; if it's slow, the network fix.
+const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+function geoHelp(code) {
+  if (!navigator.geolocation || !window.isSecureContext) return 'Este navegador no entrega la ubicación. Escribe la dirección.';
+  if (code === 1) return isIOS
+    ? '🔒 La ubicación está bloqueada. En el iPhone: Ajustes → Privacidad y seguridad → Localización → Safari (o Chrome) → «Al usar la app». Después recarga la página.'
+    : '🔒 La ubicación está bloqueada. Toca el ícono a la izquierda de la dirección de la página (🔒 o ⓘ) → Ubicación → Permitir. Después recarga la página.';
+  if (code === 2) return isIOS || /Android/.test(navigator.userAgent)
+    ? '📍 El celular tiene la ubicación apagada. Actívala en Ajustes y prueba otra vez, o escribe la dirección.'
+    : '📍 Este computador tiene la ubicación apagada (Windows: Configuración → Privacidad → Ubicación). Prueba otra vez o escribe la dirección.';
+  return '⏱ Tardó mucho en encontrarte. Prueba otra vez o escribe la dirección.';
+}
+const getPos = opts => new Promise((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, opts));
+// Fills `which` (from / me) with where the device is; on a computer the fix is a guess from the
+// internet connection, often km off, so a rough one says so.
+async function locate(which, label) {
+  const note = $(`${which}-chosen`);
+  if (!navigator.geolocation || !window.isSecureContext) { note.textContent = geoHelp(); return; }
+  try { if ((await navigator.permissions?.query({ name: 'geolocation' }))?.state === 'denied') { note.textContent = geoHelp(1); return; } } catch {}
+  note.textContent = 'Buscando dónde estás… (si el navegador pregunta, toca «Permitir»)';
+  let p;
+  try { p = await getPos({ enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }); } catch (err) {
+    if (err.code === 1) { note.textContent = geoHelp(1); return; }
+    try { p = await getPos({ enableHighAccuracy: false, timeout: 15000, maximumAge: 120000 }); } catch (err2) { note.textContent = geoHelp(err2.code); return; }
+  }
+  const lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy;
+  note.textContent = 'Buscando la dirección…';
+  const name = await placeName(lat, lng, label);
+  $(which).value = name;
+  choose(which, { lat, lng, label: name });
+  if (acc > 300) note.textContent = `⚠ Ubicación aproximada (±${acc >= 1000 ? `${(acc / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 })} km` : `${Math.round(acc)} m`}): ${name}. Si no es ahí, escribe la dirección${which === 'me' ? ' o arrastra el punto "Tú" en el mapa' : ' o mueve el punto A en el mapa'}.`;
+}
+$('here').onclick = () => locate('from', 'Mi ubicación');
 async function placeName(lat, lng, fallback) {
   try {
     const r = await (await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=es&lat=${lat}&lon=${lng}`)).json();
@@ -300,21 +325,8 @@ if (picked.from && picked.to) $('form').requestSubmit();
 
 const hhmm = t => new Date(t).toLocaleTimeString('es-CL', { timeZone: 'America/Santiago', hour: '2-digit', minute: '2-digit' });
 const fuel = km => km / CONFIG.rendimientoKmL * CONFIG.precioBencina;
-// Where I leave from: the phone's GPS, or typed / dragged by hand. A computer has no GPS: the browser
-// guesses from the internet connection, often kilometres off, so a rough fix says so.
-async function locateMe() {
-  if (!navigator.geolocation) { $('me-chosen').textContent = 'No puedo ver tu ubicación: escribe desde dónde sales.'; return; }
-  $('me-chosen').textContent = 'Buscando dónde estás…';
-  try {
-    const p = await new Promise((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }));
-    const lat = p.coords.latitude, lng = p.coords.longitude, acc = p.coords.accuracy, label = await placeName(lat, lng, 'Mi ubicación');
-    $('me').value = label;
-    choose('me', { lat, lng, label });
-    if (acc > 300) $('me-chosen').textContent = `⚠ Ubicación aproximada (±${acc >= 1000 ? `${(acc / 1000).toFixed(1)} km` : `${Math.round(acc)} m`}). Si no estás ahí, escribe desde dónde sales o arrastra el punto "Tú" en el mapa.`;
-  } catch {
-    $('me-chosen').textContent = 'No pude ver tu ubicación. Escribe desde dónde sales.';
-  }
-}
+// Where I leave from: the phone's GPS (locate), or typed / dragged by hand.
+const locateMe = () => locate('me', 'Mi ubicación');
 $('me-btn').onclick = locateMe;
 async function driverCalc() {
   const me = picked.me, out = $('me-lines');
