@@ -235,6 +235,8 @@ const isPeak = t => {
   const wd = clWeekday(t), min = clMinOfDay(t);
   return wd >= 1 && wd <= 5 && !HOLIDAYS.has(clDay(t)) && CONFIG.horaPunta.some(r => { const [a, b] = r.split('-').map(toMin); return min >= a && min < b; });
 };
+// Night surcharge (CONFIG.madrugada): the leg leaves in that time range, any day.
+const isNight = t => { const [a, b] = CONFIG.madrugada.horario.split('-').map(toMin), m = clMinOfDay(t); return a <= b ? m >= a && m < b : m >= a || m < b; };
 const meters = (a, b) => Math.hypot((a.lat - b.lat) * 110540, (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180));
 const busyPlace = pts => CONFIG.lugares.find(l => pts.some(p => meters(p, l) <= l.radio))?.nombre || null;
 function kmPrice(km) {
@@ -305,10 +307,15 @@ $('form').addEventListener('submit', async e => {
     const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
     const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
     const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
-    const byKm = CONFIG.cargoBase + prices.reduce((s, p) => s + p.amount, 0);
-    const trip = Math.ceil(Math.max(CONFIG.minimo, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
+    // Night: that leg (and, going at night, the base charge and the minimum) cost recargoPct more.
+    const night = legs.map((r, i) => isNight(i ? back : start)), extra = 1 + CONFIG.madrugada.recargoPct / 100;
+    const k = i => (night[i] ? extra : 1);
+    const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
+    const minimum = CONFIG.minimo * k(0);
+    const trip = Math.ceil(Math.max(minimum, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
     const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
-    const why = byKm < CONFIG.minimo ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y ');
+    const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
+      + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '');
     quote = { km, min, trip, toll, total: trip + toll, round, start, back, legs, tolls, why };
     show(legs, tolls);
     if (driver) {
@@ -444,8 +451,9 @@ if (params.has('yo')) store.set('conductor', '1');
 if (params.has('cliente')) store.set('conductor', null);
 const driver = params.has('yo') || store.get('conductor') === '1';
 if (driver) $('vehicle').textContent += ' · modo conductor';
-// QR visitors (?qr) land on a welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
-if (params.has('qr')) {
+// Every visit opens on the welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
+// Not when the link carries a trip ("Ver viaje" from a booking): that one goes straight to the quote.
+if (!(short.length >= 7 || params.has('o'))) {
   const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
   $('w-title').textContent = CONFIG.nombre;
   $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
