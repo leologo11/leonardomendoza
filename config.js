@@ -1,6 +1,8 @@
 // Tus datos y tus precios. Cambia solo lo que está entre comillas o los números.
 export const CONFIG = {
   nombre: 'Leonardo Mendoza',
+  // Cómo queda guardado en los contactos del cliente («Guardar contacto»): así te encuentran buscando «Uber».
+  nombreContacto: 'Leonardo Uber',
   vehiculo: 'Jetour X70 blanca',
   // Maletas grandes que caben según cuántos pasajeros van (la 3.ª fila se abate). El máximo de pasajeros
   // es el número más alto de esta lista (6 + el conductor = 7 asientos).
