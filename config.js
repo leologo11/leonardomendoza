@@ -20,8 +20,8 @@ export const CONFIG = {
   descuentoKm: [{ desde: 30, pct: 85 }, { desde: 100, pct: 75 }],
 
   // Precio del viaje = cargo base + los km. Nunca menos que el mínimo.
-  cargoBase: 5000,
-  minimo: 15000,
+  cargoBase: 2000,
+  minimo: 8000,
   // El precio del viaje se redondea hacia arriba a este múltiplo (1000 = $23.400 → $24.000).
   redondeo: 1000,
 
