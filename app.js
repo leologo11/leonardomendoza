@@ -39,7 +39,7 @@ function fitBags() {
 }
 $('pax').addEventListener('change', fitBags);
 fitBags();
-$('cap').innerHTML = `<span>👥 ${SEATS} pasajeros</span><span>🧳 hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">📇 Guardar contacto</a>`;
+$('cap').innerHTML = `<span>${SEATS} pasajeros</span><span>Hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">Guardar contacto</a>`;
 
 // Default: today, next full hour (Chile time).
 const now = Date.now(), nextHour = Math.min(23, Math.floor(clMinOfDay(now) / 60) + 1);
@@ -160,12 +160,12 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 function geoHelp(code) {
   if (!navigator.geolocation || !window.isSecureContext) return 'Este navegador no entrega la ubicación. Escribe la dirección.';
   if (code === 1) return isIOS
-    ? '🔒 La ubicación está bloqueada. En el iPhone: 1) Ajustes → Privacidad y seguridad → Localización: que esté activada, y en «Sitios web de Safari» (o «Chrome») elige «Al usar la app». 2) En Safari, toca «aA» junto a la dirección → Configuración del sitio web → Ubicación → Permitir. Después recarga la página.'
-    : '🔒 La ubicación está bloqueada. Toca el ícono a la izquierda de la dirección de la página (🔒 o ⓘ) → Ubicación → Permitir. Después recarga la página.';
+    ? 'La ubicación está bloqueada. En el iPhone: 1) Ajustes → Privacidad y seguridad → Localización: que esté activada, y en «Sitios web de Safari» (o «Chrome») elige «Al usar la app». 2) En Safari, toca «aA» junto a la dirección → Configuración del sitio web → Ubicación → Permitir. Después recarga la página.'
+    : 'La ubicación está bloqueada. Toca el ícono a la izquierda de la dirección de la página (🔒 o ⓘ) → Ubicación → Permitir. Después recarga la página.';
   if (code === 2) return isIOS || /Android/.test(navigator.userAgent)
-    ? '📍 El celular tiene la ubicación apagada. Actívala en Ajustes y prueba otra vez, o escribe la dirección.'
-    : '📍 Este computador tiene la ubicación apagada (Windows: Configuración → Privacidad → Ubicación). Prueba otra vez o escribe la dirección.';
-  return '⏱ Tardó mucho en encontrarte. Prueba otra vez o escribe la dirección.';
+    ? 'El celular tiene la ubicación apagada. Actívala en Ajustes y prueba otra vez, o escribe la dirección.'
+    : 'Este computador tiene la ubicación apagada (Windows: Configuración → Privacidad → Ubicación). Prueba otra vez o escribe la dirección.';
+  return 'Tardó mucho en encontrarte. Prueba otra vez o escribe la dirección.';
 }
 const getPos = opts => new Promise((ok, no) => navigator.geolocation.getCurrentPosition(ok, no, opts));
 // Fills `which` (from / me) with where the device is; on a computer the fix is a guess from the
@@ -185,7 +185,7 @@ async function locate(which, label) {
   const name = await placeName(lat, lng, label);
   $(which).value = name;
   choose(which, { lat, lng, label: name });
-  if (acc > 300) note.textContent = `⚠ Ubicación aproximada (±${acc >= 1000 ? `${(acc / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 })} km` : `${Math.round(acc)} m`}): ${name}. Si no es ahí, escribe la dirección${which === 'me' ? ' o arrastra el punto "Tú" en el mapa' : ' o mueve el punto A en el mapa'}.`;
+  if (acc > 300) note.textContent = `Ubicación aproximada (±${acc >= 1000 ? `${(acc / 1000).toLocaleString('es-CL', { maximumFractionDigits: 1 })} km` : `${Math.round(acc)} m`}): ${name}. Si no es ahí, escribe la dirección${which === 'me' ? ' o arrastra el punto "Tú" en el mapa' : ' o mueve el punto A en el mapa'}.`;
 }
 $('here').onclick = () => locate('from', 'Mi ubicación');
 async function placeName(lat, lng, fallback) {
@@ -241,7 +241,7 @@ function draw(routes) {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
   }
   layer?.remove(); meLayer?.remove();
-  const r = routes[0], line = L.polyline(r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: getComputedStyle(document.body).getPropertyValue('--accent').trim() || '#0f7b5f', weight: 5 });
+  const r = routes[0], line = L.polyline(r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#0a0a0a', weight: 5, opacity: 0.85 });
   // The pickup and destination pins can be dragged to the exact spot: the trip is quoted again.
   const pin = (which, text, kind = which) => {
     const m = L.marker([picked[which].lat, picked[which].lng], { draggable: true, icon: L.divIcon({ className: `pin pin-${kind}`, html: text, iconSize: [28, 28] }) });
@@ -355,7 +355,7 @@ $('book').onclick = () => {
   for (const c of q.tolls.flatMap(t => t.items)) roads.set(c.road, (roads.get(c.road) || 0) + c.price);
   const tag = [...roads].map(([r, a]) => `${r} ${money(a)}`).join(' · ');
   const text = [
-    `Hola ${CONFIG.nombre.split(' ')[0]} 👋 Quiero reservar un viaje.`,
+    `Hola ${CONFIG.nombre.split(' ')[0]}, quiero reservar un viaje.`,
     !!who && `*${who}*`,
     '',
     `📍 *Desde:* ${picked.from.label}`,
@@ -430,8 +430,8 @@ if (driver) $('vehicle').textContent += ' · modo conductor';
 // QR visitors (?qr) land on a welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
 if (params.has('qr')) {
   const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
-  $('w-title').textContent = `Hola 👋 soy ${CONFIG.nombre.split(' ')[0]}`;
-  $('w-sub').textContent = `${CONFIG.nombre} · traslados privados en ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`;
+  $('w-title').textContent = CONFIG.nombre;
+  $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
   $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.`)}`;
   $('w-close').onclick = close;
   $('welcome').addEventListener('click', e => { if (e.target.id === 'welcome') close(); });
@@ -471,7 +471,7 @@ async function driverCalc() {
       choose('me', { lat, lng, label });
     });
     meLayer?.remove();
-    meLayer = L.featureGroup([L.polyline(go.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#16181d', weight: 4, dashArray: '6 8', opacity: 0.7 }), mine]).addTo(map);
+    meLayer = L.featureGroup([L.polyline(go.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#6b6b6b', weight: 4, dashArray: '6 8', opacity: 0.8 }), mine]).addTo(map);
     fitAll();
     out.innerHTML = '';
     const line = (a, b, cls = '') => { const li = document.createElement('li'); li.className = cls; li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; out.append(li); };
