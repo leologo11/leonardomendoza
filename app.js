@@ -1,5 +1,8 @@
-import { CONFIG } from './config.js';
-import { routeTolls } from './tag.js';
+// The page's own code is loaded fresh on every visit (see index.html), and so are the settings and
+// the TAG code: a phone never keeps an old version.
+const fresh = new URL(import.meta.url).search;
+const { CONFIG } = await import(`./config.js${fresh}`);
+const { routeTolls } = await import(`./tag.js${fresh}`);
 import { HOLIDAYS } from './data/tollRates.js';
 import { clStartOfDay, clDay, clMinOfDay, clWeekday } from './data/clTime.js';
 
@@ -145,7 +148,7 @@ const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
 function geoHelp(code) {
   if (!navigator.geolocation || !window.isSecureContext) return 'Este navegador no entrega la ubicación. Escribe la dirección.';
   if (code === 1) return isIOS
-    ? '🔒 La ubicación está bloqueada. En el iPhone: Ajustes → Privacidad y seguridad → Localización → Safari (o Chrome) → «Al usar la app». Después recarga la página.'
+    ? '🔒 La ubicación está bloqueada. En el iPhone: 1) Ajustes → Privacidad y seguridad → Localización: que esté activada, y en «Sitios web de Safari» (o «Chrome») elige «Al usar la app». 2) En Safari, toca «aA» junto a la dirección → Configuración del sitio web → Ubicación → Permitir. Después recarga la página.'
     : '🔒 La ubicación está bloqueada. Toca el ícono a la izquierda de la dirección de la página (🔒 o ⓘ) → Ubicación → Permitir. Después recarga la página.';
   if (code === 2) return isIOS || /Android/.test(navigator.userAgent)
     ? '📍 El celular tiene la ubicación apagada. Actívala en Ajustes y prueba otra vez, o escribe la dirección.'

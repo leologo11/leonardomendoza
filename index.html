@@ -327,6 +327,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
   <p class="small">Mapa © colaboradores de OpenStreetMap.</p>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script type="module" src="app.js"></script>
+<!-- Always the latest code: GitHub Pages lets browsers keep files 10 min and Safari even longer. -->
+<script type="module">import(`./app.js?v=${Date.now()}`);</script>
 </body>
 </html>
