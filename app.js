@@ -237,7 +237,8 @@ function legPrice(km, t, place) {
 let map, layer, meLayer, quote = null;
 function draw(routes) {
   if (!map) {
-    map = L.map('map', { zoomControl: false, attributionControl: false });
+    map = L.map('map', { zoomControl: true, attributionControl: false });
+    map.zoomControl.setPosition('topright');
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
   }
   layer?.remove(); meLayer?.remove();
