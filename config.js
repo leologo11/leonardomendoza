@@ -7,17 +7,32 @@ export const CONFIG = {
   // Tu WhatsApp con código de país, sin + ni espacios (Chile: 569 + tu número).
   whatsapp: '56981430340',
 
-  // Valor por km según el tráfico a la hora de salida.
-  tarifas: { alta: 1000, media: 800, baja: 700 },
-  // Cuándo es tarifa alta y media (hora de Chile). Todo lo que no está aquí es tarifa baja.
-  horarios: {
-    habil: { alta: ['07:00-10:00', '17:00-21:00'], media: ['00:00-06:00', '10:00-17:00'] }, // lunes a viernes
-    sabado: { media: ['00:00-06:00', '10:00-21:00'] },
-    domingo: { media: ['00:00-06:00'] }, // domingos y festivos
-  },
-  // Viajes largos: desde cierto km, ese tramo se cobra a un % del valor por km.
-  // Ej: 120 km = los primeros 30 al 100%, del 30 al 100 al 85% y del 100 en adelante al 75%.
-  descuentoKm: [{ desde: 30, pct: 85 }, { desde: 100, pct: 75 }],
+  // Valor por km según la distancia: cada tramo de km a su precio.
+  // Ej: 40 km = 15 km a $1.000 + 15 km a $900 + 10 km a $800.
+  porKm: [{ desde: 0, valor: 1000 }, { desde: 15, valor: 900 }, { desde: 30, valor: 800 }, { desde: 100, valor: 700 }],
+
+  // En hora punta, o si el viaje parte, para o llega en un lugar concurrido, TODO el viaje va a este valor por km.
+  tarifaAlta: 1000,
+  horaPunta: ['07:00-10:00', '17:00-21:00'], // lunes a viernes (no festivos), hora de Chile
+  // Lugares concurridos: nombre, posición y radio en metros alrededor.
+  lugares: [
+    { nombre: 'Aeropuerto', lat: -33.3925, lng: -70.7900, radio: 2500 },
+    { nombre: 'Estadio Nacional', lat: -33.4644, lng: -70.6106, radio: 700 },
+    { nombre: 'Estadio Monumental', lat: -33.5065, lng: -70.6049, radio: 600 },
+    { nombre: 'Claro Arena (San Carlos de Apoquindo)', lat: -33.3959, lng: -70.5014, radio: 600 },
+    { nombre: 'Movistar Arena / Parque O\'Higgins', lat: -33.4618, lng: -70.6651, radio: 800 },
+    { nombre: 'Espacio Riesco', lat: -33.3840, lng: -70.6213, radio: 500 },
+    { nombre: 'Costanera Center', lat: -33.4180, lng: -70.6068, radio: 300 },
+    { nombre: 'Parque Arauco', lat: -33.4012, lng: -70.5754, radio: 500 },
+    { nombre: 'Alto Las Condes', lat: -33.3898, lng: -70.5482, radio: 500 },
+    { nombre: 'Mall Plaza Egaña', lat: -33.4527, lng: -70.5698, radio: 400 },
+    { nombre: 'Mall Plaza Vespucio', lat: -33.5176, lng: -70.5984, radio: 500 },
+    { nombre: 'Mall Florida Center', lat: -33.5108, lng: -70.6055, radio: 400 },
+    { nombre: 'Terminales Alameda / Sur / San Borja', lat: -33.4532, lng: -70.6845, radio: 700 },
+    { nombre: 'Terminal Los Héroes', lat: -33.4445, lng: -70.6586, radio: 300 },
+    { nombre: 'Plaza de Armas', lat: -33.4374, lng: -70.6513, radio: 400 },
+    { nombre: 'Cerro San Cristóbal (Pío Nono)', lat: -33.4342, lng: -70.6357, radio: 400 },
+  ],
 
   // Precio del viaje = cargo base + los km. Nunca menos que el mínimo.
   cargoBase: 2000,

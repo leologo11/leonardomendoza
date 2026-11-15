@@ -197,22 +197,27 @@ const durations = r => r.legs.flatMap(l => l.annotation.duration);
 const stopPlaces = () => stops.map(id => picked[id]).filter(Boolean);
 const at = (date, time) => { const [h, m] = time.split(':').map(Number); return clStartOfDay(date) + (h * 60 + m) * 60000; };
 
-// Traffic band at the departure time (CONFIG.horarios): holidays go as Sunday.
-const BAND_NAME = { alta: 'tarifa alta', media: 'tarifa media', baja: 'tarifa baja' };
+// ── Price of the km. By distance, each stretch at its own value (CONFIG.porKm: the further, the cheaper).
+// The whole trip at CONFIG.tarifaAlta at peak hour (weekdays, not holidays) or when it starts, stops or
+// ends at a busy place (CONFIG.lugares). The client only sees the total; the driver sees why.
 const toMin = s => { const [h, m] = s.split(':').map(Number); return h * 60 + m; };
-function band(t) {
+const isPeak = t => {
   const wd = clWeekday(t), min = clMinOfDay(t);
-  const day = CONFIG.horarios[HOLIDAYS.has(clDay(t)) || wd === 0 ? 'domingo' : wd === 6 ? 'sabado' : 'habil'] || {};
-  const inside = r => { const [a, b] = r.split('-').map(toMin); return min >= a && min < b; };
-  return ['alta', 'media'].find(b => (day[b] || []).some(inside)) || 'baja';
-}
-// Each stretch of km at its share of the rate (CONFIG.descuentoKm): long trips pay less per km.
-function kmPrice(km, rate) {
-  const steps = [{ desde: 0, pct: 100 }, ...CONFIG.descuentoKm];
-  return steps.reduce((s, x, i) => {
-    const end = steps[i + 1]?.desde ?? Infinity;
-    return km > x.desde ? s + (Math.min(km, end) - x.desde) * rate * x.pct / 100 : s;
+  return wd >= 1 && wd <= 5 && !HOLIDAYS.has(clDay(t)) && CONFIG.horaPunta.some(r => { const [a, b] = r.split('-').map(toMin); return min >= a && min < b; });
+};
+const meters = (a, b) => Math.hypot((a.lat - b.lat) * 110540, (a.lng - b.lng) * 111320 * Math.cos((a.lat * Math.PI) / 180));
+const busyPlace = pts => CONFIG.lugares.find(l => pts.some(p => meters(p, l) <= l.radio))?.nombre || null;
+function kmPrice(km) {
+  const t = CONFIG.porKm;
+  return t.reduce((s, x, i) => {
+    const end = t[i + 1]?.desde ?? Infinity;
+    return km > x.desde ? s + (Math.min(km, end) - x.desde) * x.valor : s;
   }, 0);
+}
+// One leg: its price and why (null = by distance).
+function legPrice(km, t, place) {
+  const why = place || (isPeak(t) ? 'hora punta' : null);
+  return { amount: why ? km * CONFIG.tarifaAlta : kmPrice(km), why };
 }
 
 let map, layer, meLayer, quote = null;
@@ -267,11 +272,13 @@ $('form').addEventListener('submit', async e => {
     if (round) legs.push(await route(picked.to, picked.from));
     const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start));
     const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
-    const bands = legs.map((r, i) => band(i ? back : start));
-    const byKm = CONFIG.cargoBase + legs.reduce((s, r, i) => s + kmPrice(r.distance / 1000, CONFIG.tarifas[bands[i]]), 0);
+    const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
+    const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
+    const byKm = CONFIG.cargoBase + prices.reduce((s, p) => s + p.amount, 0);
     const trip = Math.ceil(Math.max(CONFIG.minimo, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
     const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
-    quote = { km, min, trip, toll, total: trip + toll, round, start, back, bands, legs, tolls, minimum: byKm < CONFIG.minimo };
+    const why = byKm < CONFIG.minimo ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y ');
+    quote = { km, min, trip, toll, total: trip + toll, round, start, back, legs, tolls, why };
     show(legs, tolls);
     if (driver) {
       $('driver').classList.remove('hidden'); $('me-lines').innerHTML = '';
@@ -296,12 +303,12 @@ function show(legs, tolls) {
   draw(legs);
   const q = quote, h = Math.floor(q.min / 60), m = Math.round(q.min % 60);
   const n = stopPlaces().length;
-  $('summary').textContent = `${q.km.toFixed(1)} km${q.round ? ' (ida y vuelta)' : ''}${n ? ` · ${plural(n, 'parada', 'paradas')}` : ''} · ${h ? `${h} h ` : ''}${m} min de viaje`;
+  // The client sees time and stops; km and how it was priced only in driver mode.
+  $('summary').textContent = `${driver ? `${q.km.toFixed(1)} km · ` : ''}${q.round ? 'ida y vuelta · ' : ''}${n ? `${plural(n, 'parada', 'paradas')} · ` : ''}${h ? `${h} h ` : ''}${m} min de viaje`;
   $('total').textContent = money(q.total);
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
-  const rates = [...new Set(q.bands)].map(b => `${BAND_NAME[b]} ${money(CONFIG.tarifas[b])}/km`).join(' y ');
-  line(`${q.round ? 'Viaje ida y vuelta' : 'Viaje'} (${rates})`, money(q.trip));
+  line(`${q.round ? 'Viaje ida y vuelta' : 'Viaje'}${driver ? ` (${q.why})` : ''}`, money(q.trip));
   if (CONFIG.sumarPeajes) line('TAG y peajes (estimado)', q.toll ? money(q.toll) : 'Sin peajes');
   const items = tolls.flatMap((t, i) => t.items.map(c => ({ ...c, leg: i })));
   $('tolls-detail').classList.toggle('hidden', !items.length || !CONFIG.sumarPeajes);
@@ -329,7 +336,6 @@ $('book').onclick = () => {
   const roads = new Map();
   for (const c of q.tolls.flatMap(t => t.items)) roads.set(c.road, (roads.get(c.road) || 0) + c.price);
   const tag = [...roads].map(([r, a]) => `${r} ${money(a)}`).join(' · ');
-  const rate = q.minimum ? 'tarifa mínima' : [...new Set(q.bands)].map(b => BAND_NAME[b]).join(' y ');
   const text = [
     `Hola ${CONFIG.nombre.split(' ')[0]} 👋 Quiero reservar un viaje.`,
     !!who && `*${who}*`,
@@ -341,7 +347,7 @@ $('book').onclick = () => {
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
     '',
     `💵 *Total: ${money(q.total)}*`,
-    `• Viaje${q.round ? ' ida y vuelta' : ''} ${q.km.toLocaleString('es-CL', { maximumFractionDigits: 1 })} km (${rate}): ${money(q.trip)}`,
+    `• Viaje${q.round ? ' ida y vuelta' : ''}: ${money(q.trip)}`,
     CONFIG.sumarPeajes && (tag ? `• TAG ${money(q.toll)}: ${tag}` : '• Sin TAG ni peajes'),
     !!note && `📝 ${note}`,
     '',
