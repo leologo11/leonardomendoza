@@ -29,6 +29,8 @@ const refBand = t => { const w = when(t), h = w.minute / 60; return w.weekday >=
 // The route lies on the road itself: 15 m from a gantry is going under it. Plaza booths sit on the road
 // too (0 m away), while the lateral booths on the ramps beside the highway are 10–30 m off: 5 m.
 const GANTRY_M = 15, PLAZA_M = 5;
+// The terminal area of Santiago's airport (terminals and their parking), well away from Costanera Norte.
+const AIRPORT = { lat: -33.3945, lng: -70.7905, radius: 1200 };
 
 // coords: [[lng, lat], …] of the route; durations: seconds of each stretch between them; start: ms.
 export function routeTolls(coords, durations, start) {
@@ -71,6 +73,14 @@ export function routeTolls(coords, durations, start) {
     }
   }
   items.push(...avoTrips(avo));
+  // The airport: the map's router often goes in by a street without the Acceso Vial AMB gantry, but
+  // the car pays it. A route that reaches the terminal charges it once (going in or coming out).
+  const amb = TOLL_BY_NODE.get(GANTRIES.find(g => g.name === 'Peaje Acceso Vial AMB')?.osm);
+  const atAirport = pts.find(p => meters(p, AIRPORT) < AIRPORT.radius);
+  if (amb && atAirport && !items.some(c => c.road === amb.highway)) {
+    const p = tollPrice(amb, when(atAirport.t));
+    items.push({ t: atAirport.t, road: amb.highway, name: `${amb.tramo} (entrar o salir del aeropuerto)`, band: p.band, price: Math.round(p.amount) });
+  }
   items.sort((x, y) => x.t - y.t);
   // Paying a troncal plaza lets the car through one lateral free for a while (Los Libertadores 12 h, Ruta 5 Sur 6 h).
   const FREE = { LL: { troncal: ['LL:CANTERAS', 'LL:SANJOSE', 'LL:CHACABUCO'], ms: 12 * 3600000 }, R5S: { troncal: ['R5S:ANGOSTURA', 'R5S:QUINTA'], ms: 6 * 3600000 } };
