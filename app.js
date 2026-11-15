@@ -18,7 +18,8 @@ stage.addEventListener('click', drive);
 if (CONFIG.foto) {
   const img = new Image();
   img.alt = CONFIG.vehiculo;
-  img.onload = () => { $('car-svg').replaceWith(img); drive(); };
+  // The photo faces left, so it comes in from the right.
+  img.onload = () => { $('car-svg').replaceWith(img); stage.classList.add('rev', 'photo-car'); drive(); };
   img.onerror = drive;
   img.src = CONFIG.foto;
 } else drive();

@@ -84,8 +84,27 @@ main { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
 @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
 /* Phones / PCs set to reduce motion get a soft fade instead of the drive. */
 @keyframes carFadeIn { from { transform: translateX(-5%); opacity: 0 } to { transform: none; opacity: 1 } }
+/* The photo faces left: it drives in from the right (.rev). The effects are mirrored, the text isn't. */
+.fx { position: absolute; inset: 0; pointer-events: none; }
+.stage:not(.go) .car { opacity: 0; }
+.rev .fx { transform: scaleX(-1); }
+.rev.go .car { animation-name: carInRev; }
+.rev.go .car-body { animation-name: bodySettleRev, idle; }
+.rev.go .ghost { animation-name: stageGhostRev; }
+@media (min-width: 700px) { .rev.go .car { animation-name: carInRev, carBlur; } }
+@keyframes carInRev {
+  0% { transform: translate3d(140%, 7px, 0) scale(.82) skewX(10deg); opacity: 0 }
+  18% { opacity: 1 }
+  62% { transform: translate3d(-5%, 0, 0) scale(1.045) skewX(-3deg) }
+  80% { transform: translate3d(1.8%, 0, 0) scale(.99) skewX(.8deg) }
+  100% { transform: none }
+}
+@keyframes bodySettleRev { 0%, 48% { transform: rotate(0) } 60% { transform: rotate(-1.4deg) } 80% { transform: rotate(.6deg) } 100% { transform: rotate(0) } }
+@keyframes stageGhostRev { from { transform: translateX(-36%); opacity: 0 } to { transform: translateX(-50%); opacity: 1 } }
+.photo-car .car { width: min(84%, 400px); margin-left: calc(min(84%, 400px) / -2); bottom: 3%; }
+.photo-car { height: 230px; }
 @media (prefers-reduced-motion: reduce) {
-  .go .car { animation: carFadeIn .45s .1s ease-out both !important; }
+  .go .car, .rev.go .car { animation: carFadeIn .45s .1s ease-out both !important; }
   .go .car-body, .go .wheel, .go .road-dash, .go .sweep, .go .impact, .go .sline, .go .dust { animation: none !important; }
   .go .sweep { opacity: 0; }
   .go .beam { animation: none; opacity: 1; }
@@ -159,6 +178,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
     <div class="stage" id="stage" aria-hidden="true" title="Toca para verla llegar otra vez">
       <div class="glow"></div>
       <div class="ghost">JETOUR X70</div>
+      <div class="fx">
       <div class="road"><div class="road-dash"></div></div>
       <div class="floor"></div>
       <div class="sweep"></div>
@@ -171,6 +191,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
       <span class="dust" style="left:22%;animation-delay:.65s"></span>
       <span class="dust" style="left:24%;animation-delay:.7s"></span>
       <span class="dust" style="left:26%;animation-delay:.75s"></span>
+      </div>
       <div class="car"><div class="car-body" id="car-body">
         <!-- Drawn white 7-seat SUV, shown until the photo in CONFIG.foto loads. -->
         <svg viewBox="0 0 330 124" id="car-svg">
