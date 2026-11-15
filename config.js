@@ -19,6 +19,11 @@ export const CONFIG = {
   // En hora punta, o si el viaje parte, para o llega en un lugar concurrido, TODO el viaje va a este valor por km.
   tarifaAlta: 950,
   horaPunta: ['07:00-10:00', '17:00-21:00'], // lunes a viernes (no festivos), hora de Chile
+  // Botones rápidos bajo «¿Dónde te recojo?» y «¿A dónde vas?»: un toque y queda ese lugar.
+  rapidos: [
+    { nombre: 'Aeropuerto', lat: -33.39665, lng: -70.7939 }, // Terminal 1 Nacional, Armando Cortínez Oriente 1704
+  ],
+
   // Lugares concurridos: nombre, posición y radio en metros alrededor.
   lugares: [
     { nombre: 'Aeropuerto', lat: -33.3925, lng: -70.7900, radio: 2500 },

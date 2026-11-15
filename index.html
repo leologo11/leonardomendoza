@@ -182,6 +182,12 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .mini:disabled { opacity: .3; cursor: default; }
 .mini.del { color: var(--muted); }
 .stop .with-btn { gap: 6px; }
+/* Quick places under pickup / destination (CONFIG.rapidos). */
+.quick { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.quick:empty { display: none; }
+.quick button { border: 1px solid var(--line); background: var(--card); color: var(--text); border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 0.85rem; font-weight: 600; cursor: pointer; }
+.quick button:hover { border-color: var(--text); }
+.quick button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .stop-tools { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .link-btn { border: 1px dashed var(--line); background: transparent; color: var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .link-btn:hover { background: var(--accent-soft); }
@@ -285,6 +291,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
       </div>
       <ul class="results" id="from-results"></ul>
       <div class="chosen" id="from-chosen"></div>
+      <div class="quick" data-for="from"></div>
     </div>
 
     <div id="stops"></div>
@@ -301,6 +308,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
       </div>
       <ul class="results" id="to-results"></ul>
       <div class="chosen" id="to-chosen"></div>
+      <div class="quick" data-for="to"></div>
     </div>
 
     <div class="row">

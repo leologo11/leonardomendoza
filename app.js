@@ -55,6 +55,8 @@ function choose(which, place) {
   picked[which] = place;
   $(`${which}-chosen`).textContent = place ? `✓ ${place.label}` : '';
   $(`${which}-results`).innerHTML = '';
+  // The quick button of that place stays marked while it's the one chosen.
+  document.querySelectorAll(`.quick[data-for="${which}"] button`).forEach(b => b.classList.toggle('on', !!place && place.label === b.textContent));
   if (which === 'me' && place) driverCalc();
   // Picking a stop once there's a price quotes again with it.
   if (stops.includes(which) && place && quote) $('form').requestSubmit();
@@ -146,6 +148,20 @@ function addStop(place) {
   return id;
 }
 $('add-stop').onclick = () => addStop();
+// Quick places (CONFIG.rapidos): one tap fills pickup or destination with that place, shown by its name.
+document.querySelectorAll('.quick').forEach(box => {
+  const which = box.dataset.for;
+  for (const q of CONFIG.rapidos || []) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.textContent = q.nombre;
+    b.onclick = () => {
+      $(which).value = q.nombre;
+      choose(which, { lat: q.lat, lng: q.lng, label: q.nombre });
+      requote();
+    };
+    box.append(b);
+  }
+});
 // The way back: the destination becomes the pickup, and the stops go in reverse.
 $('swap').onclick = () => {
   const a = picked.from, b = picked.to, va = $('from').value, vb = $('to').value;
