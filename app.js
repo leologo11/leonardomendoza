@@ -469,10 +469,15 @@ $('form').addEventListener('submit', async e => {
     const home = round ? await route(picked.to, picked.from) : null;
     const options = threeOptions(ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid })));
     // A slower way never costs the client more than the fastest one: its extra time is paid up to that
-    // price (the TAG it saves pays for it). Only its own km can make it dearer.
+    // price (the TAG it saves pays for it); only its own km can make it dearer. And a way with less TAG
+    // is always at least CONFIG.menosTag cheaper than the fastest.
     for (const o of options.slice(1)) {
-      const plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total, cap = Math.max(plain, options[0].total);
-      if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; o.why += cap === options[0].total ? ' (tope: el precio de la más rápida)' : ''; }
+      const fast = options[0].total, plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total;
+      const lessTag = o.goToll < options[0].goToll, cap = lessTag ? fast - CONFIG.menosTag : Math.max(plain, fast);
+      if (o.total > cap && cap - o.toll >= CONFIG.minimo) {
+        o.trip -= o.total - cap; o.total = cap;
+        o.why += lessTag ? ` (tope: ${money(CONFIG.menosTag)} menos que la más rápida)` : cap === fast ? ' (tope: el precio de la más rápida)' : '';
+      }
     }
     // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;

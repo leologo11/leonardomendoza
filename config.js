@@ -25,6 +25,8 @@ export const CONFIG = {
   // Rutas: se muestran hasta 3 (la más rápida, otras y una sin TAG si existe). Si una demora más que la
   // más rápida, su viaje sube este % de su tiempo extra (50 = la mitad: 20% más de tiempo → 10% más caro).
   tiempoExtraPct: 50,
+  // La ruta sin TAG (o con menos TAG) siempre sale al menos esto más barata que la más rápida.
+  menosTag: 1000,
 
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
   // (también el cargo base y el mínimo). Todos los días, hora de Chile.
