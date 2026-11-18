@@ -22,6 +22,10 @@ export const CONFIG = {
   // En hora punta, o si el viaje parte, para o llega en un lugar concurrido, TODO el viaje va a este valor por km.
   tarifaAlta: 950,
   horaPunta: ['07:00-10:00', '17:00-21:00'], // lunes a viernes (no festivos), hora de Chile
+  // Rutas: se muestran hasta 3 (la más rápida, otras y una sin TAG si existe). Si una demora más que la
+  // más rápida, su viaje sube este % de su tiempo extra (50 = la mitad: 20% más de tiempo → 10% más caro).
+  tiempoExtraPct: 50,
+
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
   // (también el cargo base y el mínimo). Todos los días, hora de Chile.
   madrugada: { horario: '00:00-06:00', recargoPct: 20 },

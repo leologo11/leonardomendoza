@@ -200,6 +200,15 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .pay-opt input:checked + span { border-color: var(--accent); background: var(--accent); color: var(--accent-text); }
 .pay-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .pay.missing .pay-opt span { border-color: var(--warn); }
+/* The ways to choose from (up to 3). */
+.ways { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin: 10px 0 4px; }
+.way { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; text-align: left; border: 1.5px solid var(--line); background: var(--card); color: var(--text); border-radius: 12px; padding: 10px 14px; font: inherit; cursor: pointer; }
+.way strong { display: block; font-size: 0.95rem; }
+.way > span { min-width: 0; flex: 1; }
+.way small { display: block; color: var(--muted); font-size: 0.8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.way b { font-size: 1rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.way.on { border-color: var(--accent); background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent) inset; }
+.way.on strong { color: var(--accent); }
 .driver { border: 2px dashed var(--accent); }
 .far { background: var(--accent-soft); border-radius: 12px; padding: 12px 14px; margin-bottom: 4px; }
 .far strong { display: block; font-size: 1.6rem; letter-spacing: -0.01em; }
@@ -338,6 +347,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
     <div id="map"></div>
     <div class="small">Puedes arrastrar los puntos del mapa (A, paradas y B) para marcar el lugar exacto.</div>
     <div class="small" id="summary"></div>
+    <div class="ways hidden" id="ways"></div>
     <p class="price" id="total"></p>
     <ul class="lines" id="lines"></ul>
     <details id="tolls-detail" class="hidden"><summary>Ver pórticos y peajes</summary><ul id="tolls"></ul></details>

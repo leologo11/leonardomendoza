@@ -262,7 +262,98 @@ async function route(...pts) {
 // Seconds of each stretch of the whole geometry (one list per leg between stops, end to end).
 const durations = r => r.legs.flatMap(l => l.annotation.duration);
 // The road node of each coordinate (legs share their joining node), to tell which gantries it goes through.
-const nodesOf = r => r.legs.flatMap((l, i) => (i ? l.annotation.nodes.slice(1) : l.annotation.nodes));
+const nodesOf = r => (r.legs.every(l => l.annotation.nodes) ? r.legs.flatMap((l, i) => (i ? l.annotation.nodes.slice(1) : l.annotation.nodes)) : null);
+
+// ── Up to 3 ways for the trip. Google Routes gives them (times with traffic, alternatives, and one that
+// avoids tolls); each is redrawn on the free router through points along it, so its TAG is still read by
+// the exact gantry nodes. Without Google (no key, no Routes API, an error): the free router's own options.
+const headingOf = (a, b) => {
+  const r = x => (x * Math.PI) / 180, y = Math.sin(r(b.lng - a.lng)) * Math.cos(r(b.lat));
+  const x = Math.cos(r(a.lat)) * Math.sin(r(b.lat)) - Math.sin(r(a.lat)) * Math.cos(r(b.lat)) * Math.cos(r(b.lng - a.lng));
+  return Math.round(((Math.atan2(y, x) * 180) / Math.PI + 360) % 360);
+};
+function decodePolyline(str) {
+  const pts = [];
+  let i = 0, lat = 0, lng = 0;
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let b, shift = 0, out = 0;
+      do { b = str.charCodeAt(i++) - 63; out |= (b & 31) << shift; shift += 5; } while (b >= 32);
+      const d = out & 1 ? ~(out >> 1) : out >> 1;
+      if (k) lng += d; else lat += d;
+    }
+    pts.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return pts;
+}
+async function googleWays(pts, when) {
+  if (!CONFIG.googleKey) throw new Error('sin clave');
+  const ll = p => ({ location: { latLng: { latitude: p.lat, longitude: p.lng } } });
+  const body = extra => ({
+    origin: ll(pts[0]), destination: ll(pts.at(-1)), intermediates: pts.slice(1, -1).map(ll),
+    travelMode: 'DRIVE', routingPreference: 'TRAFFIC_AWARE', languageCode: 'es', regionCode: 'cl',
+    ...(when > Date.now() + 120000 ? { departureTime: new Date(when).toISOString() } : {}), ...extra,
+  });
+  const call = b => fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': CONFIG.googleKey, 'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline,routes.description' },
+    body: JSON.stringify(b),
+  }).then(r => (r.ok ? r.json() : Promise.reject(new Error(`Google ${r.status}`))));
+  // Alternatives only exist without stops (Google's rule).
+  const [main, free] = await Promise.allSettled([call(body(pts.length === 2 ? { computeAlternativeRoutes: true } : {})), call(body({ routeModifiers: { avoidTolls: true } }))]);
+  if (main.status !== 'fulfilled' || !main.value.routes?.length) throw main.reason || new Error('Google sin rutas');
+  // Each way keeps Google's name for it ("Autop. Costanera Nte.") and whether it's the one avoiding tolls.
+  const ways = [...main.value.routes, ...(free.status === 'fulfilled' ? (free.value.routes || []).map(g => ({ ...g, avoid: true })) : [])];
+  return Promise.all(ways.map(async g => ({
+    ...(await rebuild({ seconds: parseFloat(g.duration), meters: g.distanceMeters, path: decodePolyline(g.polyline.encodedPolyline) }, pts)),
+    desc: g.description || '', avoid: !!g.avoid,
+  })));
+}
+// Google's way on the free router: points every ~2 km along it (with the heading there, so it keeps to that
+// carriageway) plus the stops. Times scaled to Google's (traffic). If it doesn't match (>8% longer), the
+// Google line itself is used and the TAG is read by distance.
+async function rebuild(g, pts) {
+  const idx = [];
+  let acc = 0;
+  for (let i = 1; i < g.path.length - 2; i++) { acc += meters(g.path[i - 1], g.path[i]); if (acc >= 2000) { idx.push(i); acc = 0; } }
+  const every = Math.ceil(idx.length / 18) || 1;
+  const via = idx.filter((_, k) => k % every === 0).map(i => ({ i, p: g.path[i], h: headingOf(g.path[i], g.path[i + 1]) }));
+  // The stops, at their place along the line.
+  for (const s of pts.slice(1, -1)) {
+    let best = 0;
+    g.path.forEach((p, i) => { if (meters(p, s) < meters(g.path[best], s)) best = i; });
+    via.push({ i: best, p: s, h: null });
+  }
+  via.sort((a, b) => a.i - b.i);
+  const coords = [pts[0], ...via.map(v => v.p), pts.at(-1)];
+  const bearings = ['', ...via.map(v => (v.h == null ? '' : `${v.h},45`)), ''].join(';');
+  const plain = () => {
+    const f = g.seconds / Math.max(1, g.path.length - 1);
+    return { geometry: { coordinates: g.path.map(p => [p.lng, p.lat]) }, distance: g.meters, duration: g.seconds, legs: [{ annotation: { duration: g.path.slice(1).map(() => f), nodes: null } }] };
+  };
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords.map(p => `${p.lng},${p.lat}`).join(';')}?overview=full&geometries=geojson&annotations=duration,nodes&continue_straight=true&bearings=${bearings}`;
+    const r = (await (await fetch(url)).json()).routes?.[0];
+    if (!r || r.distance > g.meters * 1.08) return plain();
+    const f = g.seconds / r.duration;
+    return { geometry: r.geometry, distance: g.meters, duration: g.seconds, legs: r.legs.map(l => ({ annotation: { duration: l.annotation.duration.map(d => d * f), nodes: l.annotation.nodes } })) };
+  } catch { return plain(); }
+}
+async function osrmWays(pts) {
+  const url = `https://router.project-osrm.org/route/v1/driving/${pts.map(p => `${p.lng},${p.lat}`).join(';')}?overview=full&geometries=geojson&annotations=duration,nodes${pts.length === 2 ? '&alternatives=3' : ''}`;
+  const r = await (await fetch(url)).json();
+  if (r.code !== 'Ok' || !r.routes?.length) throw new Error('No encontré una ruta entre esos lugares.');
+  return r.routes;
+}
+// Different ways, fastest first (two within 2% of distance and 3% of time are the same way).
+const pickWays = list => list.sort((a, b) => a.duration - b.duration)
+  .filter((r, i, all) => !all.slice(0, i).some(o => Math.abs(o.distance - r.distance) < o.distance * 0.02 && Math.abs(o.duration - r.duration) < o.duration * 0.03));
+// The 3 fastest, but the one avoiding tolls (or else the cheapest in TAG) always gets a place.
+function threeOptions(all) {
+  const top = all.slice(0, 3), low = all.find(o => o.avoid) || [...all].sort((a, b) => a.goToll - b.goToll)[0];
+  if (low && !top.includes(low) && low.goToll < Math.min(...top.map(o => o.goToll))) top[Math.min(2, top.length)] = low;
+  return top;
+}
 const stopPlaces = () => stops.map(id => picked[id]).filter(Boolean);
 const at = (date, time) => { const [h, m] = time.split(':').map(Number); return clStartOfDay(date) + (h * 60 + m) * 60000; };
 
@@ -292,7 +383,7 @@ function legPrice(km, t, place) {
 }
 
 let map, layer, meLayer, quote = null;
-function draw(routes) {
+function draw(routes, others = []) {
   if (!map) {
     map = L.map('map', { zoomControl: true, attributionControl: false });
     map.zoomControl.setPosition('topright');
@@ -312,7 +403,10 @@ function draw(routes) {
     return m;
   };
   const stopPins = stops.filter(id => picked[id]).map((id, i) => pin(id, String(i + 1), 'stop'));
-  layer = L.featureGroup([line, pin('from', 'A'), ...stopPins, pin('to', 'B')]).addTo(map);
+  // The other ways, in grey under the chosen one; tapping one picks it.
+  const alt = others.map((o, i) => o && L.polyline(o.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#8a8a8a', weight: 5, opacity: 0.55 }).on('click', () => pickOption(i))).filter(Boolean);
+  layer = L.featureGroup([...alt, line, pin('from', 'A'), ...stopPins, pin('to', 'B')]).addTo(map);
+  line.bringToFront();
   fitAll();
 }
 // The whole trip in view (and the driver's way to the pickup, when it's there).
@@ -323,6 +417,34 @@ function fitAll() {
     if (meLayer && map.hasLayer(meLayer)) b.extend(meLayer.getBounds());
     map.fitBounds(b, { padding: [30, 30] });
   }, 50);
+}
+
+// Price of one way (and the way back, if any): km by distance or at the high rate, night surcharge, and
+// a longer way than the fastest pays CONFIG.tiempoExtraPct of its extra time.
+function priceWay(go, home, start, back, fastest) {
+  const legs = home ? [go, home] : [go];
+  const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start, nodesOf(r)));
+  const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = go.duration / 60;
+  const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
+  const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
+  const slower = Math.max(0, go.duration / fastest - 1) * CONFIG.tiempoExtraPct / 100;
+  // Night: that leg (and, going at night, the base charge and the minimum) cost recargoPct more.
+  const night = legs.map((r, i) => isNight(i ? back : start)), extra = 1 + CONFIG.madrugada.recargoPct / 100;
+  const k = i => (night[i] ? extra : 1) * (i ? 1 : 1 + slower);
+  const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
+  const minimum = CONFIG.minimo * k(0);
+  const trip = Math.ceil(Math.max(minimum, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
+  const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
+  const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
+    + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '')
+    + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '');
+  return { km, min, trip, toll, total: trip + toll, legs, tolls, why, goToll: tolls[0].total };
+}
+// Choosing another way: no new search, just its price.
+function pickOption(i) {
+  quote = { ...quote, ...quote.options[i], sel: i };
+  show();
+  if (driver && picked.me) driverCalc();
 }
 
 $('form').addEventListener('submit', async e => {
@@ -339,24 +461,17 @@ $('form').addEventListener('submit', async e => {
   const btn = $('quote');
   btn.disabled = true; btn.textContent = 'Calculando…';
   try {
-    // Going: through the stops. Coming back (round trip): straight home.
-    const legs = [await route(picked.from, ...stopPlaces(), picked.to)];
-    if (round) legs.push(await route(picked.to, picked.from));
-    const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start, nodesOf(r)));
-    const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = legs[0].duration / 60;
-    const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
-    const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
-    // Night: that leg (and, going at night, the base charge and the minimum) cost recargoPct more.
-    const night = legs.map((r, i) => isNight(i ? back : start)), extra = 1 + CONFIG.madrugada.recargoPct / 100;
-    const k = i => (night[i] ? extra : 1);
-    const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
-    const minimum = CONFIG.minimo * k(0);
-    const trip = Math.ceil(Math.max(minimum, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
-    const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
-    const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
-      + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '');
-    quote = { km, min, trip, toll, total: trip + toll, round, start, back, legs, tolls, why };
-    show(legs, tolls);
+    // Going: up to 3 ways, through the stops. Coming back (round trip): straight home, the same for all.
+    const pts = [picked.from, ...stopPlaces(), picked.to];
+    let ways;
+    try { ways = await googleWays(pts, start); } catch { ways = await osrmWays(pts); }
+    ways = pickWays(ways);
+    const home = round ? await route(picked.to, picked.from) : null;
+    const options = threeOptions(ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid })));
+    // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
+    const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
+    quote = { ...options[sel], round, start, back, options, sel };
+    show();
     if (driver) {
       $('driver').classList.remove('hidden'); $('me-lines').innerHTML = '';
       // Navigation from where I am (the apps use the phone's GPS) to the pickup, then pickup → destination.
@@ -375,9 +490,25 @@ $('form').addEventListener('submit', async e => {
   } finally { btn.disabled = false; btn.textContent = 'Ver precio'; }
 });
 
-function show(legs, tolls) {
+// Name of each way: the fastest, one without TAG, or another.
+const wayName = (o, i, all) => (i === 0 ? 'Más rápida' : !o.goToll ? 'Sin TAG' : o.avoid && o.goToll < all[0].goToll ? 'Menos TAG' : 'Alternativa');
+function show() {
+  const { legs, tolls } = quote, sel = quote.sel || 0;
   $('result').classList.remove('hidden');
-  draw(legs);
+  draw(legs, quote.options.map((o, i) => (i === sel ? null : o.legs[0])));
+  const box = $('ways');
+  box.innerHTML = '';
+  box.classList.toggle('hidden', quote.options.length < 2);
+  quote.options.forEach((o, i) => {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = `way${i === sel ? ' on' : ''}`;
+    b.innerHTML = '<span><strong></strong><small></small></span><b></b>';
+    b.querySelector('strong').textContent = wayName(o, i, quote.options);
+    b.querySelector('small').textContent = `${Math.round(o.min)} min${o.desc ? ` · por ${o.desc}` : ''} · ${o.goToll ? `TAG ${money(o.goToll)}` : 'sin TAG'}`;
+    b.querySelector('b').textContent = money(o.total);
+    b.onclick = () => pickOption(i);
+    box.append(b);
+  });
   const q = quote, h = Math.floor(q.min / 60), m = Math.round(q.min % 60);
   const n = stopPlaces().length;
   // The client sees time and stops; km and how it was priced only in driver mode.
@@ -395,7 +526,8 @@ function show(legs, tolls) {
     li.textContent = `${tolls.length > 1 ? (c.leg ? 'Vuelta · ' : 'Ida · ') : ''}${c.road}: ${c.name} — ${money(c.price)}${c.band === 'punta' ? ' (hora punta)' : c.band === 'saturacion' ? ' (saturación)' : ''}`;
     $('tolls').append(li);
   }
-  $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (!quote.shown) $('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  quote.shown = true;
 }
 
 // ── Booking: opens WhatsApp with the trip already written. ────────────────────────────────────────
@@ -426,6 +558,7 @@ $('book').onclick = () => {
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
+    q.options.length > 1 && `🛣️ Ruta: ${wayName(q, q.sel || 0, q.options).toLowerCase()}${q.desc ? ` por ${q.desc}` : ''} (${Math.round(q.min)} min)`,
     '',
     `💵 *Total: ${money(q.total)}*`,
     `• Viaje${q.round ? ' ida y vuelta' : ''}: ${money(q.trip)}`,
@@ -448,7 +581,7 @@ function tripLink() {
   if ($('round').checked) v.push(stamp($('rdate').value, $('rtime').value || $('time').value));
   // Stops in order: &s=lat,lng;lat,lng
   const s = stopPlaces().map(c).join(';');
-  return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}`;
+  return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}${quote?.sel ? `&r=${quote.sel}` : ''}`;
 }
 const params = new URLSearchParams(location.search);
 const short = (params.get('v') || '').split(',');
