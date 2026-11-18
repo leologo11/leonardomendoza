@@ -61,8 +61,38 @@ function choose(which, place) {
   // Picking a stop once there's a price quotes again with it.
   if (stops.includes(which) && place && quote) $('form').requestSubmit();
 }
-// Suggestions while typing come from Photon (made for search-as-you-type, near Santiago first);
-// if it doesn't answer, Nominatim on Enter / Buscar.
+// Suggestions while typing: Google Places when CONFIG.googleKey is set (far better with Chilean street
+// numbers); otherwise, or if Google fails, Photon (made for search-as-you-type, near Santiago first),
+// and Nominatim on Enter / Buscar. A Google suggestion gets its position only when it's picked (one
+// session per pick: the typing in between isn't charged on its own).
+let gPlaces, gToken = null;
+function googlePlaces() {
+  if (!CONFIG.googleKey) return Promise.reject(new Error('sin clave'));
+  return (gPlaces ??= new Promise((ok, no) => {
+    window.__gmapsReady = ok;
+    const sc = document.createElement('script');
+    sc.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CONFIG.googleKey)}&loading=async&callback=__gmapsReady&language=es&region=CL`;
+    sc.onerror = no;
+    document.head.append(sc);
+  }).then(() => google.maps.importLibrary('places')));
+}
+const cleanLabel = t => t.replace(/, Chile$/, '').replace(/, Región Metropolitana( de Santiago)?/, '');
+async function google(q) {
+  const { AutocompleteSuggestion, AutocompleteSessionToken } = await googlePlaces();
+  gToken ??= new AutocompleteSessionToken();
+  const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+    input: q, sessionToken: gToken, includedRegionCodes: ['cl'], language: 'es',
+    locationBias: { center: { lat: -33.45, lng: -70.65 }, radius: 50000 },
+  });
+  return suggestions.filter(x => x.placePrediction).slice(0, 5).map(x => ({ label: cleanLabel(x.placePrediction.text.toString()), prediction: x.placePrediction }));
+}
+// Position of a Google suggestion (ends its session).
+async function googlePick(r) {
+  const place = r.prediction.toPlace();
+  await place.fetchFields({ fields: ['location'] });
+  gToken = null;
+  return { lat: place.location.lat(), lng: place.location.lng(), label: r.label };
+}
 async function photon(q) {
   const r = await (await fetch(`https://photon.komoot.io/api/?limit=8&lat=-33.45&lon=-70.65&bbox=-76,-56,-66,-17&q=${encodeURIComponent(q)}`)).json();
   return r.features.filter(f => f.properties.countrycode === 'CL').slice(0, 5).map(f => {
@@ -81,7 +111,8 @@ async function search(which, full = false) {
   if (q.length < 3) { list.innerHTML = ''; return; }
   if (!list.children.length) list.innerHTML = '<li class="note">Buscando…</li>';
   let res = [];
-  try { res = await photon(q); } catch {}
+  try { res = await google(q); } catch {}
+  if (!res.length) try { res = await photon(q); } catch {}
   if (full && !res.length) try { res = await nominatim(q); } catch {}
   if (mine !== seq) return;
   list.innerHTML = '';
@@ -90,7 +121,15 @@ async function search(which, full = false) {
     const li = document.createElement('li');
     li.textContent = r.label;
     li.onmousedown = e => e.preventDefault();
-    li.onclick = () => { $(which).value = shortLabel(r.label); choose(which, r); };
+    li.onclick = async () => {
+      let place = r;
+      if (r.prediction) {
+        list.innerHTML = '<li class="note">Ubicando…</li>';
+        try { place = await googlePick(r); } catch { list.innerHTML = '<li class="note">No pude ubicar esa dirección. Prueba otra vez.</li>'; return; }
+      }
+      $(which).value = shortLabel(place.label);
+      choose(which, place);
+    };
     list.append(li);
   }
 }

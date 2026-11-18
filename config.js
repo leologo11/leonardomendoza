@@ -9,6 +9,9 @@ export const CONFIG = {
   maletas: { 1: 5, 2: 5, 3: 5, 4: 5, 5: 2, 6: 1 },
   // Foto de la camioneta (déjala en la carpeta img). Vacío ('') = sin foto.
   foto: 'img/x70.png',
+  // Clave de Google (Places API) para el buscador de direcciones. Vacía = buscador gratis de OpenStreetMap.
+  // Es una clave de navegador: debe estar restringida en Google Cloud a conductores.muveapp.cl.
+  googleKey: '',
   // Tu WhatsApp con código de país, sin + ni espacios (Chile: 569 + tu número).
   whatsapp: '56981430340',
 
