@@ -468,17 +468,23 @@ $('form').addEventListener('submit', async e => {
     ways = pickWays(ways);
     const home = round ? await route(picked.to, picked.from) : null;
     const options = threeOptions(ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid })));
-    // A slower way never costs the client more than the fastest one: its extra time is paid up to that
-    // price (the TAG it saves pays for it); only its own km can make it dearer. And a way with less TAG
-    // is always at least CONFIG.menosTag cheaper than the fastest.
+    // A way with less TAG is offered CONFIG.menosTag cheaper than the fastest, but only if the driver
+    // still keeps at least what the fastest leaves him (trip − fuel of its own km): a toll-free way that
+    // goes round a lot isn't offered. Any other slower way costs at most what the fastest does, unless its
+    // own km make it dearer.
+    const fast = options[0], keep = fast.trip - fuel(fast.km);
     for (const o of options.slice(1)) {
-      const fast = options[0].total, plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total;
-      const lessTag = o.goToll < options[0].goToll, cap = lessTag ? fast - CONFIG.menosTag : Math.max(plain, fast);
-      if (o.total > cap && cap - o.toll >= CONFIG.minimo) {
-        o.trip -= o.total - cap; o.total = cap;
-        o.why += lessTag ? ` (tope: ${money(CONFIG.menosTag)} menos que la más rápida)` : cap === fast ? ' (tope: el precio de la más rápida)' : '';
+      if (o.goToll < fast.goToll) {
+        const floor = o.toll + fuel(o.km) + keep, price = fast.total - CONFIG.menosTag;
+        if (floor > price || price - o.toll < CONFIG.minimo) { o.drop = true; continue; }
+        o.trip = price - o.toll; o.total = price;
+        o.why = `${o.why.replace(/ \+ \d+% por más tiempo/, '')} · ${money(CONFIG.menosTag)} menos que la más rápida; te quedan ${money(o.trip - fuel(o.km))} (en la más rápida ${money(keep)})`;
+      } else {
+        const plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total, cap = Math.max(plain, fast.total);
+        if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; if (cap === fast.total) o.why += ' (tope: el precio de la más rápida)'; }
       }
     }
+    options.splice(0, options.length, ...options.filter(o => !o.drop));
     // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
     quote = { ...options[sel], round, start, back, options, sel };
