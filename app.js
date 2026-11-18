@@ -260,7 +260,7 @@ function draw(routes) {
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18 }).addTo(map);
   }
   layer?.remove(); meLayer?.remove();
-  const r = routes[0], line = L.polyline(r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#0a0a0a', weight: 5, opacity: 0.85 });
+  const r = routes[0], line = L.polyline(r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), { color: '#0052ff', weight: 5, opacity: 0.9 });
   // The pickup and destination pins can be dragged to the exact spot: the trip is quoted again.
   const pin = (which, text, kind = which) => {
     const m = L.marker([picked[which].lat, picked[which].lng], { draggable: true, icon: L.divIcon({ className: `pin pin-${kind}`, html: text, iconSize: [28, 28] }) });

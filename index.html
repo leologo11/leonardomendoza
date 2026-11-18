@@ -16,12 +16,13 @@
 :root {
   /* Black and white, executive. */
   --bg: #f4f4f4; --card: #ffffff; --text: #0a0a0a; --muted: #6b6b6b; --line: #e2e2e2;
-  --accent: #0a0a0a; --accent-text: #ffffff; --accent-soft: #efefef; --warn: #b45309;
-  --wa: #0a0a0a;
+  /* Accent: Muve blue. WhatsApp: its green. */
+  --accent: #0052ff; --accent-text: #ffffff; --accent-soft: #e8efff; --warn: #b45309;
+  --wa: #1fa855;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #0a0a0a; --card: #151515; --text: #f2f2f2; --muted: #9a9a9a; --line: #2a2a2a;
-    --accent: #f2f2f2; --accent-text: #0a0a0a; --accent-soft: #232323; --warn: #f0b45c; --wa: #f2f2f2; }
+    --accent: #3d7bff; --accent-text: #ffffff; --accent-soft: #10204a; --warn: #f0b45c; --wa: #22b35c; }
 }
 * { box-sizing: border-box; }
 /* The page doesn't zoom: no double-tap zoom, no zoom when typing (16 px fields + maximum-scale), nothing
@@ -40,12 +41,12 @@ main { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
   background: radial-gradient(120% 80% at 50% 100%, #2b2b2b 0%, #111111 55%, #050505 100%); }
 .hero-text { position: relative; z-index: 3; padding: 22px 20px 0; }
 .hero .kicker { display: inline-flex; align-items: center; gap: 6px; font-size: 0.72rem; letter-spacing: 0.14em; text-transform: uppercase; margin: 0;
-  padding: 5px 12px; border-radius: 999px; background: transparent; color: #d6d6d6; border: 1px solid rgba(255, 255, 255, .28); font-weight: 500;
+  padding: 5px 12px; border-radius: 999px; background: transparent; color: #9dbcff; border: 1px solid rgba(61, 123, 255, .5); background: rgba(0, 82, 255, .12); font-weight: 500;
   animation: fadeUp .6s .1s ease-out both; }
 .hero h1 { margin: 12px 0 0; font-size: 2.05rem; line-height: 1.05; letter-spacing: -0.025em; font-weight: 700; animation: fadeUp .6s .2s ease-out both; }
 .hero p.sub { margin: 6px 0 0; color: #b5b5b5; letter-spacing: 0.01em; animation: fadeUp .6s .3s ease-out both; }
 .stage { position: relative; height: 200px; overflow: hidden; cursor: pointer; }
-.stage .glow { position: absolute; inset: 0; background: radial-gradient(60% 70% at 50% 78%, rgba(255, 255, 255, .14), transparent 70%); }
+.stage .glow { position: absolute; inset: 0; background: radial-gradient(60% 70% at 50% 78%, rgba(0, 82, 255, .42), transparent 70%); }
 .ghost { position: absolute; left: 50%; top: 4%; white-space: nowrap; font-weight: 900; font-size: 92px; letter-spacing: -.05em; line-height: 1;
   color: rgba(255, 255, 255, .06); pointer-events: none; transform: translateX(-50%); }
 .road { position: absolute; left: 0; right: 0; bottom: 9%; height: 2px; opacity: .35; overflow: hidden; }
@@ -155,7 +156,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .check input { width: auto; }
 .btn { display: block; width: 100%; border: 0; border-radius: 12px; padding: 14px; font: inherit; font-weight: 600; cursor: pointer; margin-top: 14px; }
 .btn.primary { background: var(--accent); color: var(--accent-text); }
-.btn.wa { background: var(--wa); color: var(--accent-text); letter-spacing: 0.01em; }
+.btn.wa { background: var(--wa); color: #ffffff; letter-spacing: 0.01em; }
 .btn:disabled { opacity: 0.6; cursor: wait; }
 /* The map in grayscale, to match the page. */
 #map .leaflet-tile-pane { filter: grayscale(1) contrast(1.05) brightness(1.02); }
@@ -170,13 +171,13 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .small { font-size: 0.82rem; color: var(--muted); }
 .error { color: var(--warn); font-size: 0.9rem; margin-top: 10px; }
 .pin { display: flex; align-items: center; justify-content: center; border-radius: 50%; color: #fff; font: 700 13px/1 system-ui, sans-serif; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-.pin-from { background: #0a0a0a; }
+.pin-from { background: #0052ff; }
 .pin-to { background: #ffffff; color: #0a0a0a; border-color: #0a0a0a; }
 .nav { display: flex; gap: 8px; margin-top: 10px; }
 .nav a { flex: 1; text-align: center; text-decoration: none; border: 1px solid var(--line); border-radius: 10px; padding: 10px 6px; color: var(--text); font-size: 0.88rem; background: var(--bg); }
 .driver h3 { margin: 14px 0 0; font-size: 0.9rem; }
-.stop { margin-left: 10px; padding-left: 12px; border-left: 2px solid var(--text); border-radius: 0 0 0 4px; transition: background .4s; }
-.stop label { color: var(--text); font-weight: 600; }
+.stop { margin-left: 10px; padding-left: 12px; border-left: 2px solid var(--accent); border-radius: 0 0 0 4px; transition: background .4s; }
+.stop label { color: var(--accent); font-weight: 600; }
 .stop.moved { background: var(--accent-soft); }
 .mini { flex: none; width: 40px; border: 1px solid var(--line); background: var(--bg); color: var(--text); border-radius: 10px; font: inherit; font-size: 1rem; cursor: pointer; }
 .mini:disabled { opacity: .3; cursor: default; }
@@ -191,7 +192,7 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .stop-tools { display: flex; justify-content: space-between; gap: 8px; margin-top: 10px; }
 .link-btn { border: 1px dashed var(--line); background: transparent; color: var(--accent); border-radius: 10px; padding: 9px 12px; font: inherit; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
 .link-btn:hover { background: var(--accent-soft); }
-.pin-stop { background: #6b6b6b; }
+.pin-stop { background: #5b8cff; }
 .pay { display: flex; gap: 10px; }
 .pay-opt { position: relative; flex: 1; margin: 0; cursor: pointer; }
 .pay-opt input { position: absolute; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -208,22 +209,23 @@ details ul { padding-left: 18px; margin: 8px 0 0; color: var(--muted); }
 .lines li.strong { font-weight: 700; }
 .lines li.sub { font-size: 0.85rem; color: var(--muted); border-top: 0; padding-top: 0; }
 /* Welcome card for QR visitors (?qr): quote, save the contact or write on WhatsApp. */
-.sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: flex-end; justify-content: center; padding: 16px;
+.sheet { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 16px;
   background: rgba(0, 0, 0, .6); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: fadeIn .25s ease-out both; }
 .sheet-card { position: relative; width: 100%; max-width: 440px; border-radius: 24px; padding: 22px 20px 20px; color: #fff; text-align: center;
-  background: radial-gradient(120% 80% at 50% 100%, #2b2b2b 0%, #111111 55%, #050505 100%); box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  background: radial-gradient(70% 45% at 50% 30%, rgba(0, 82, 255, .35), transparent 75%), radial-gradient(120% 80% at 50% 100%, #2b2b2b 0%, #111111 55%, #050505 100%); box-shadow: 0 20px 60px rgba(0,0,0,.5);
   animation: sheetUp .45s cubic-bezier(.16, .84, .3, 1) both; }
 @keyframes sheetUp { from { transform: translateY(40px); opacity: 0 } to { transform: none; opacity: 1 } }
 .sheet-x { position: absolute; top: 12px; right: 12px; width: 34px; height: 34px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); color: #fff; font-size: 0.95rem; cursor: pointer; }
 .sheet-car { display: block; width: 70%; max-width: 260px; margin: 2px auto 6px; filter: drop-shadow(0 12px 12px rgba(0,0,0,.5)); }
 .sheet h2 { margin: 0; font-size: 1.55rem; font-weight: 700; letter-spacing: -0.02em; }
 .sheet .kicker { display: inline-block; margin: 0 0 8px; font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: #bdbdbd; }
-.sheet .btn.primary { background: #ffffff; color: #0a0a0a; }
+.sheet .btn.primary { background: #0052ff; color: #ffffff; box-shadow: 0 8px 24px rgba(0, 82, 255, .35); }
+.sheet #w-wa { background: #1fa855; border-color: #1fa855; }
 .sheet p { margin: 6px 0 16px; color: #b5b5b5; font-size: 0.9rem; letter-spacing: 0.01em; }
 .sheet .btn { margin-top: 10px; text-decoration: none; font-size: 1.02rem; }
 .sheet .btn small { display: block; margin-top: 2px; font-size: 0.78rem; font-weight: 500; letter-spacing: 0.04em; opacity: 0.65; }
 .btn.outline { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18); }
-.cap a { font-size: 0.78rem; padding: 4px 11px; border-radius: 999px; background: #ffffff; border: 1px solid #ffffff; color: #0a0a0a; text-decoration: none; font-weight: 600; }
+.cap a { font-size: 0.78rem; padding: 4px 11px; border-radius: 999px; background: #0052ff; border: 1px solid #0052ff; color: #ffffff; text-decoration: none; font-weight: 600; }
 .hidden { display: none; }
 </style>
 </head>
