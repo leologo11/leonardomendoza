@@ -74,10 +74,10 @@ function googlePlaces() {
     sc.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(CONFIG.googleKey)}&loading=async&callback=__gmapsReady&language=es&region=CL`;
     sc.onerror = no;
     document.head.append(sc);
-  }).then(() => google.maps.importLibrary('places')));
+  }).then(() => window.google.maps.importLibrary("places")));
 }
 const cleanLabel = t => t.replace(/, Chile$/, '').replace(/, Región Metropolitana( de Santiago)?/, '');
-async function google(q) {
+async function googleSearch(q) {
   const { AutocompleteSuggestion, AutocompleteSessionToken } = await googlePlaces();
   gToken ??= new AutocompleteSessionToken();
   const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({
@@ -111,7 +111,7 @@ async function search(which, full = false) {
   if (q.length < 3) { list.innerHTML = ''; return; }
   if (!list.children.length) list.innerHTML = '<li class="note">Buscando…</li>';
   let res = [];
-  try { res = await google(q); } catch {}
+  try { res = await googleSearch(q); } catch {}
   if (!res.length) try { res = await photon(q); } catch {}
   if (full && !res.length) try { res = await nominatim(q); } catch {}
   if (mine !== seq) return;
