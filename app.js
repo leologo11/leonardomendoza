@@ -468,6 +468,12 @@ $('form').addEventListener('submit', async e => {
     ways = pickWays(ways);
     const home = round ? await route(picked.to, picked.from) : null;
     const options = threeOptions(ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid })));
+    // A slower way never costs the client more than the fastest one: its extra time is paid up to that
+    // price (the TAG it saves pays for it). Only its own km can make it dearer.
+    for (const o of options.slice(1)) {
+      const plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total, cap = Math.max(plain, options[0].total);
+      if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; o.why += cap === options[0].total ? ' (tope: el precio de la más rápida)' : ''; }
+    }
     // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
     quote = { ...options[sel], round, start, back, options, sel };
@@ -504,7 +510,9 @@ function show() {
     b.type = 'button'; b.className = `way${i === sel ? ' on' : ''}`;
     b.innerHTML = '<span><strong></strong><small></small></span><b></b>';
     b.querySelector('strong').textContent = wayName(o, i, quote.options);
-    b.querySelector('small').textContent = `${Math.round(o.min)} min${o.desc ? ` · por ${o.desc}` : ''} · ${o.goToll ? `TAG ${money(o.goToll)}` : 'sin TAG'}`;
+    // The difference shown is in time (the price of a slower way is kept at the fastest's).
+    const more = Math.round(o.min - quote.options[0].min);
+    b.querySelector('small').textContent = `${Math.round(o.min)} min${i && more > 0 ? ` (+${more})` : ''}${o.desc ? ` · por ${o.desc}` : ''} · ${o.goToll ? `TAG ${money(o.goToll)}` : 'sin TAG'}`;
     b.querySelector('b').textContent = money(o.total);
     b.onclick = () => pickOption(i);
     box.append(b);
