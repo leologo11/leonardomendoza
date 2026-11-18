@@ -395,7 +395,6 @@ $('book').onclick = () => {
     !!note && `📝 ${note}`,
     '',
     `Ver viaje: ${tripLink()}`,
-    `Ref: ${source}`,
   ].filter(x => x !== false).join('\n');
   window.open(`https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(text)}`, '_blank');
 };
@@ -413,12 +412,6 @@ function tripLink() {
   return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}`;
 }
 const params = new URLSearchParams(location.search);
-// Where the visit came from: the QR (?qr), the NFC tag (?nfc) or the plain link. Kept for the whole
-// visit and written at the end of the WhatsApp messages ("Ref: QR"), to count which one brings trips.
-const source = (() => {
-  const s = params.has('nfc') ? 'NFC' : params.has('qr') ? 'QR' : null;
-  try { if (s) sessionStorage.setItem('ref', s); return s || sessionStorage.getItem('ref') || 'Web'; } catch { return s || 'Web'; }
-})();
 const short = (params.get('v') || '').split(',');
 if (short.length >= 7) {
   const [la1, ln1, la2, ln2, when, p, b, back] = short;
@@ -464,9 +457,7 @@ if (!(short.length >= 7 || params.has('o'))) {
   const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
   $('w-title').textContent = CONFIG.nombre;
   $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
-  $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.
-
-Ref: ${source}`)}`;
+  $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.`)}`;
   $('w-close').onclick = close;
   $('welcome').addEventListener('click', e => { if (e.target.id === 'welcome') close(); });
   $('w-quote').onclick = () => { close(); $('form').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
