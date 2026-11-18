@@ -348,10 +348,11 @@ async function osrmWays(pts) {
 // Different ways, fastest first (two within 2% of distance and 3% of time are the same way).
 const pickWays = list => list.sort((a, b) => a.duration - b.duration)
   .filter((r, i, all) => !all.slice(0, i).some(o => Math.abs(o.distance - r.distance) < o.distance * 0.02 && Math.abs(o.duration - r.duration) < o.duration * 0.03));
-// The 3 fastest, but the one avoiding tolls (or else the cheapest in TAG) always gets a place.
+// The 3 fastest (the fastest first, chosen and recommended), but the fastest viable way with less TAG
+// always gets a place.
 function threeOptions(all) {
-  const top = all.slice(0, 3), low = all.find(o => o.avoid) || [...all].sort((a, b) => a.goToll - b.goToll)[0];
-  if (low && !top.includes(low) && low.goToll < Math.min(...top.map(o => o.goToll))) top[Math.min(2, top.length)] = low;
+  const top = all.slice(0, 3), low = all.find((o, i) => i && o.goToll < all[0].goToll);
+  if (low && !top.some((o, i) => i && o.goToll < all[0].goToll)) top[Math.min(2, top.length)] = low;
   return top;
 }
 const stopPlaces = () => stops.map(id => picked[id]).filter(Boolean);
@@ -467,13 +468,13 @@ $('form').addEventListener('submit', async e => {
     try { ways = await googleWays(pts, start); } catch { ways = await osrmWays(pts); }
     ways = pickWays(ways);
     const home = round ? await route(picked.to, picked.from) : null;
-    const options = threeOptions(ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid })));
+    const all = ways.map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '', avoid: !!go.avoid }));
     // A way with less TAG is offered CONFIG.menosTag cheaper than the fastest, but only if the driver
     // still keeps at least what the fastest leaves him (trip − fuel of its own km): a toll-free way that
     // goes round a lot isn't offered. Any other slower way costs at most what the fastest does, unless its
     // own km make it dearer.
-    const fast = options[0], keep = fast.trip - fuel(fast.km);
-    for (const o of options.slice(1)) {
+    const fast = all[0], keep = fast.trip - fuel(fast.km);
+    for (const o of all.slice(1)) {
       if (o.goToll < fast.goToll) {
         const floor = o.toll + fuel(o.km) + keep, price = fast.total - CONFIG.menosTag;
         if (floor > price || price - o.toll < CONFIG.minimo) { o.drop = true; continue; }
@@ -484,7 +485,7 @@ $('form').addEventListener('submit', async e => {
         if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; if (cap === fast.total) o.why += ' (tope: el precio de la más rápida)'; }
       }
     }
-    options.splice(0, options.length, ...options.filter(o => !o.drop));
+    const options = threeOptions(all.filter(o => !o.drop));
     // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
     quote = { ...options[sel], round, start, back, options, sel };
@@ -508,7 +509,7 @@ $('form').addEventListener('submit', async e => {
 });
 
 // Name of each way: the fastest, one without TAG, or another.
-const wayName = (o, i, all) => (i === 0 ? 'Más rápida' : !o.goToll ? 'Sin TAG' : o.avoid && o.goToll < all[0].goToll ? 'Menos TAG' : 'Alternativa');
+const wayName = (o, i, all) => (i === 0 ? 'Más rápida · recomendada' : !o.goToll ? 'Sin TAG' : o.avoid && o.goToll < all[0].goToll ? 'Menos TAG' : 'Alternativa');
 function show() {
   const { legs, tolls } = quote, sel = quote.sel || 0;
   $('result').classList.remove('hidden');
