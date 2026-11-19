@@ -368,6 +368,20 @@ function kmPrice(km) {
     return km > x.desde ? s + (Math.min(km, end) - x.desde) * x.valor : s;
   }, 0);
 }
+// Km of each piece of the way between stops (A→1, 1→2, …→B), cut where the line passes each stop.
+function piecesKm(go, stopsList) {
+  const c = go.geometry.coordinates.map(([lng, lat]) => ({ lat, lng })), acc = [0];
+  for (let i = 1; i < c.length; i++) acc.push(acc[i - 1] + meters(c[i - 1], c[i]));
+  const cuts = [0];
+  for (const s of stopsList) {
+    let best = cuts.at(-1);
+    for (let i = best; i < c.length; i++) if (meters(c[i], s) < meters(c[best], s)) best = i;
+    cuts.push(best);
+  }
+  cuts.push(c.length - 1);
+  const f = go.distance / 1000 / Math.max(1, acc.at(-1));
+  return cuts.slice(1).map((e, j) => (acc[e] - acc[cuts[j]]) * f);
+}
 // One leg: its price and why (null = by distance).
 function legPrice(km, t, place) {
   const why = place || (isPeak(t) ? 'hora punta' : null);
@@ -413,12 +427,20 @@ function fitAll() {
 
 // Price of one way (and the way back, if any): km by distance or at the high rate, night surcharge, and
 // a longer way than the fastest pays CONFIG.tiempoExtraPct of its extra time.
-function priceWay(go, home, start, back, fastest) {
+function priceWay(go, home, start, back, fastest, via = stopPlaces()) {
   const legs = home ? [go, home] : [go];
   const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start, nodesOf(r)));
   const km = legs.reduce((s, r) => s + r.distance, 0) / 1000, min = go.duration / 60;
-  const place = busyPlace([picked.from, ...stopPlaces(), picked.to]);
+  const place = busyPlace([picked.from, ...via, picked.to]);
   const prices = legs.map((r, i) => legPrice(r.distance / 1000, i ? back : start, place));
+  // With stops, each piece after a stop is charged as a trip of its own (its base charge, its km from the
+  // first tier again, and at least CONFIG.parada.minimoTramo): stopping, waiting and detours cost time.
+  // The client only sees the total.
+  const n = via.length;
+  if (n) {
+    const [first, ...rest] = piecesKm(go, via).map(km => legPrice(km, start, place));
+    prices[0] = { ...prices[0], amount: first.amount + rest.reduce((s, p) => s + Math.max(CONFIG.parada.minimoTramo, CONFIG.cargoBase + p.amount), 0) };
+  }
   const slower = Math.max(0, go.duration / fastest - 1) * CONFIG.tiempoExtraPct / 100;
   // Night: that leg (and, going at night, the base charge and the minimum) cost recargoPct more.
   const night = legs.map((r, i) => isNight(i ? back : start)), extra = 1 + CONFIG.madrugada.recargoPct / 100;
@@ -429,10 +451,9 @@ function priceWay(go, home, start, back, fastest) {
   const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
   const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
     + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '')
-    + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '');
-  // Each stop costs a fixed amount (time stopped, waiting, detours), even if it's on the way.
-  const stopFee = stopPlaces().length * CONFIG.parada.valor;
-  return { km, min, trip, stopFee, toll, total: trip + stopFee + toll, legs, tolls, why, goToll: tolls[0].total };
+    + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '')
+    + (n ? ` + ${n} ${n === 1 ? 'parada' : 'paradas'}: cada tramo como viaje aparte` : '');
+  return { km, min, trip, toll, total: trip + toll, legs, tolls, why, goToll: tolls[0].total };
 }
 // Choosing another way: no new search, just its price.
 function pickOption(i) {
@@ -467,6 +488,12 @@ $('form').addEventListener('submit', async e => {
     for (const o of options.slice(1)) {
       const plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total, cap = Math.max(plain, options[0].total);
       if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; if (cap === options[0].total) o.why += ' (tope: el precio de la más rápida)'; }
+    }
+    // With stops, never less than the same trip straight (free router) plus minimoTramo per stop.
+    const n = stopPlaces().length;
+    if (n) {
+      const direct = await route(picked.from, picked.to), floor = Math.ceil((priceWay(direct, home, start, back, direct.duration, []).trip + n * CONFIG.parada.minimoTramo) / CONFIG.redondeo) * CONFIG.redondeo;
+      for (const o of options) if (o.trip < floor) { o.total += floor - o.trip; o.trip = floor; o.why += ` (piso: directo + ${money(n * CONFIG.parada.minimoTramo)})`; }
     }
     // Reopening a trip link keeps the way that was chosen (?r=), if it's still there.
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
@@ -519,7 +546,6 @@ function show() {
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
   line(`${q.round ? 'Viaje ida y vuelta' : 'Viaje'}${driver ? ` (${q.why})` : ''}`, money(q.trip));
-  if (q.stopFee) line(`${plural(n, 'Parada', 'Paradas')} (hasta ${CONFIG.parada.esperaMin} min c/u)`, money(q.stopFee));
   if (CONFIG.sumarPeajes) line('TAG y peajes (estimado)', q.toll ? money(q.toll) : 'Sin peajes');
   const items = tolls.flatMap((t, i) => t.items.map(c => ({ ...c, leg: i })));
   $('tolls-detail').classList.toggle('hidden', !items.length || !CONFIG.sumarPeajes);
@@ -565,7 +591,6 @@ $('book').onclick = () => {
     '',
     `💵 *Total: ${money(q.total)}*`,
     `• Viaje${q.round ? ' ida y vuelta' : ''}: ${money(q.trip)}`,
-    !!q.stopFee && `• ${plural(stopPlaces().length, 'parada', 'paradas')} (hasta ${CONFIG.parada.esperaMin} min c/u): ${money(q.stopFee)}`,
     CONFIG.sumarPeajes && (tag ? `• TAG ${money(q.toll)}: ${tag}` : '• Sin TAG ni peajes'),
     `${pay === 'Efectivo' ? '💵' : '🏦'} *Pago:* ${pay}`,
     !!note && `📝 ${note}`,
@@ -659,7 +684,7 @@ async function driverCalc() {
     const home = await route(end, me);
     const goKm = go.distance / 1000, homeKm = home.distance / 1000;
     const goCost = fuel(goKm) + tolls(go, leave), tripFuel = fuel(q.km), homeCost = fuel(homeKm) + tolls(home, endAt);
-    const left = q.trip + (q.stopFee || 0) - goCost - tripFuel;
+    const left = q.trip - goCost - tripFuel;
     // How far I am from the pickup, big, and my way there on the map (dashed).
     const goMin = Math.round(go.duration / 60);
     $('me-far-km').textContent = `Estás a ${goKm.toFixed(1)} km del cliente`;
@@ -681,7 +706,7 @@ async function driverCalc() {
     line(`Bencina ${money(fuel(goKm))} + TAG ${money(goCost - fuel(goKm))}`, '', 'sub');
     line(`Bencina del viaje · ${q.km.toFixed(1)} km`, `−${money(tripFuel)}`);
     line('El TAG del viaje lo paga el cliente', '', 'sub');
-    line('Cobras por el viaje', money(q.trip + (q.stopFee || 0)));
+    line('Cobras por el viaje', money(q.trip));
     line('Te queda', money(left), 'strong');
     line(`Si vuelves vacío hasta aquí · ${homeKm.toFixed(1)} km`, `−${money(homeCost)}`);
     line('Te queda volviendo vacío', money(left - homeCost), 'strong');

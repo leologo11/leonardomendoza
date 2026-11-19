@@ -26,9 +26,10 @@ export const CONFIG = {
   // este % de su tiempo extra (50 = la mitad), sin pasar del precio de la más rápida salvo por sus km.
   tiempoExtraPct: 50,
 
-  // Cada parada suma este valor fijo (aunque quede en el camino): el tiempo detenido, la espera y el desvío.
-  // esperaMin = minutos de espera incluidos por parada (sale en la cotización y en el mensaje).
-  parada: { valor: 2000, esperaMin: 5 },
+  // Paradas: cada tramo después de una parada se cobra como un viaje aparte (su cargo base y sus km desde
+  // el primer tramo de precio), y nunca menos que minimoTramo. Va escondido en el precio del viaje.
+  // Además, con paradas nunca cuesta menos que el mismo viaje directo + minimoTramo por parada.
+  parada: { minimoTramo: 5000 },
 
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
   // (también el cargo base y el mínimo). Todos los días, hora de Chile.
