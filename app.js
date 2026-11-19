@@ -430,7 +430,9 @@ function priceWay(go, home, start, back, fastest) {
   const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
     + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '')
     + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '');
-  return { km, min, trip, toll, total: trip + toll, legs, tolls, why, goToll: tolls[0].total };
+  // Each stop costs a fixed amount (time stopped, waiting, detours), even if it's on the way.
+  const stopFee = stopPlaces().length * CONFIG.parada.valor;
+  return { km, min, trip, stopFee, toll, total: trip + stopFee + toll, legs, tolls, why, goToll: tolls[0].total };
 }
 // Choosing another way: no new search, just its price.
 function pickOption(i) {
@@ -517,6 +519,7 @@ function show() {
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
   line(`${q.round ? 'Viaje ida y vuelta' : 'Viaje'}${driver ? ` (${q.why})` : ''}`, money(q.trip));
+  if (q.stopFee) line(`${plural(n, 'Parada', 'Paradas')} (hasta ${CONFIG.parada.esperaMin} min c/u)`, money(q.stopFee));
   if (CONFIG.sumarPeajes) line('TAG y peajes (estimado)', q.toll ? money(q.toll) : 'Sin peajes');
   const items = tolls.flatMap((t, i) => t.items.map(c => ({ ...c, leg: i })));
   $('tolls-detail').classList.toggle('hidden', !items.length || !CONFIG.sumarPeajes);
@@ -562,6 +565,7 @@ $('book').onclick = () => {
     '',
     `💵 *Total: ${money(q.total)}*`,
     `• Viaje${q.round ? ' ida y vuelta' : ''}: ${money(q.trip)}`,
+    !!q.stopFee && `• ${plural(stopPlaces().length, 'parada', 'paradas')} (hasta ${CONFIG.parada.esperaMin} min c/u): ${money(q.stopFee)}`,
     CONFIG.sumarPeajes && (tag ? `• TAG ${money(q.toll)}: ${tag}` : '• Sin TAG ni peajes'),
     `${pay === 'Efectivo' ? '💵' : '🏦'} *Pago:* ${pay}`,
     !!note && `📝 ${note}`,
@@ -655,7 +659,7 @@ async function driverCalc() {
     const home = await route(end, me);
     const goKm = go.distance / 1000, homeKm = home.distance / 1000;
     const goCost = fuel(goKm) + tolls(go, leave), tripFuel = fuel(q.km), homeCost = fuel(homeKm) + tolls(home, endAt);
-    const left = q.trip - goCost - tripFuel;
+    const left = q.trip + (q.stopFee || 0) - goCost - tripFuel;
     // How far I am from the pickup, big, and my way there on the map (dashed).
     const goMin = Math.round(go.duration / 60);
     $('me-far-km').textContent = `Estás a ${goKm.toFixed(1)} km del cliente`;
@@ -677,7 +681,7 @@ async function driverCalc() {
     line(`Bencina ${money(fuel(goKm))} + TAG ${money(goCost - fuel(goKm))}`, '', 'sub');
     line(`Bencina del viaje · ${q.km.toFixed(1)} km`, `−${money(tripFuel)}`);
     line('El TAG del viaje lo paga el cliente', '', 'sub');
-    line('Cobras por el viaje', money(q.trip));
+    line('Cobras por el viaje', money(q.trip + (q.stopFee || 0)));
     line('Te queda', money(left), 'strong');
     line(`Si vuelves vacío hasta aquí · ${homeKm.toFixed(1)} km`, `−${money(homeCost)}`);
     line('Te queda volviendo vacío', money(left - homeCost), 'strong');
