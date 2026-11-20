@@ -676,6 +676,7 @@ if (!(short.length >= 7 || params.has('o'))) {
   const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
   $('w-title').textContent = CONFIG.nombre;
   $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
+  if (CONFIG.resenas) { $('w-review').href = CONFIG.resenas; $('w-review').classList.remove('hidden'); }
   $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.`)}`;
   $('w-close').onclick = close;
   $('welcome').addEventListener('click', e => { if (e.target.id === 'welcome') close(); });

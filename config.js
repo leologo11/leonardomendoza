@@ -14,6 +14,8 @@ export const CONFIG = {
   googleKey: 'AIzaSyDLoKqEMSCRFragtDWRZAn9QeQUgyPUF9E',
   // Tu WhatsApp con código de país, sin + ni espacios (Chile: 569 + tu número).
   whatsapp: '56981430340',
+  // Link de Google para que te dejen una reseña (Perfil de Empresa → Pedir reseñas). Vacío ('') = sin botón.
+  resenas: 'https://g.page/r/CUe4tSRoDWIJECE/review',
 
   // Valor por km según la distancia: cada tramo de km a su precio.
   // Ej: 40 km = 15 km a $798 + 15 km a $718 + 10 km a $638.
