@@ -701,6 +701,35 @@ function uberBox() {
   $('uber-open').href = `https://m.uber.com/ul/?${u}`;
   if ($('uber').value) $('uber').dispatchEvent(new Event('input'));
 }
+// Every Uber price typed is noted on this phone (no addresses: when, km, minutes, passengers, prices) so
+// Uber's formula and its demand by hour can be worked out later and the page can price like it on its own.
+const UBER_LOG = 'uberLog';
+const readLog = () => { try { return JSON.parse(localStorage.getItem(UBER_LOG)) || []; } catch { return []; } };
+function noteUber() {
+  const x = uberSuggest();
+  if (!x || !quote) return;
+  const log = readLog(), fast = quote.options[0], t = Date.now();
+  const row = { id: quote.logId ||= t, cuando: new Date(t).toISOString(), dia: clWeekday(t), hora: (m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`)(Math.floor(clMinOfDay(t))), km: +fast.km.toFixed(1),
+    min: Math.round(fast.min), paradas: stopPlaces().length, ida_vuelta: quote.round ? 1 : 0, pasajeros: +$('pax').value, tipo: tier().uber, uber: x.u,
+    mio: quote.options[quote.sel || 0].total, tag: Math.round(fast.toll), salida: new Date(quote.start).toISOString() };
+  const i = log.findIndex(r => r.id === row.id);
+  if (i >= 0) log[i] = row; else log.push(row);
+  try { localStorage.setItem(UBER_LOG, JSON.stringify(log)); } catch {}
+  logCount();
+}
+function logCount() {
+  const n = readLog().length;
+  $('uber-count').textContent = n ? `Llevas ${n} ${n === 1 ? 'precio anotado' : 'precios anotados'} de Uber en este celular.` : '';
+  $('uber-copy').classList.toggle('hidden', !n);
+}
+$('uber').addEventListener('change', noteUber);
+$('uber-copy').onclick = async () => {
+  const log = readLog(), cols = Object.keys(log[0]).filter(k => k !== 'id');
+  const csv = [cols.join(','), ...log.map(r => cols.map(c => r[c]).join(','))].join('\n');
+  try { await navigator.clipboard.writeText(csv); $('uber-count').textContent = `Copiados ${log.length}. Pégalos en el chat con Claude.`; }
+  catch { window.open(`https://wa.me/?text=${encodeURIComponent(csv)}`, '_blank'); }
+};
+logCount();
 $('uber').addEventListener('input', () => {
   const x = uberSuggest(), out = $('uber-lines');
   $('uber-out').classList.toggle('hidden', !x || !quote);
@@ -712,10 +741,11 @@ $('uber').addEventListener('input', () => {
   line(`Tu precio sugerido (−${CONFIG.uberDescuentoPct}%, TAG incluido)`, money(x.s), 'strong');
   line(`Tu precio normal ${money(normal)}`, x.s < normal ? `${money(normal - x.s)} menos` : `${money(x.s - normal)} más`, 'sub');
 });
-$('uber-use').onclick = () => { const x = uberSuggest(); if (x && quote) setPrice(x.s); };
+$('uber-use').onclick = () => { const x = uberSuggest(); if (x && quote) { noteUber(); setPrice(x.s); } };
 $('uber-send').onclick = () => {
   const x = uberSuggest();
   if (!x || !quote) return;
+  noteUber();
   setPrice(x.s);
   const q = quote;
   const text = [
