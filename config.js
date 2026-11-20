@@ -16,11 +16,12 @@ export const CONFIG = {
   whatsapp: '56981430340',
 
   // Valor por km según la distancia: cada tramo de km a su precio.
-  // Ej: 40 km = 15 km a $950 + 15 km a $855 + 10 km a $760.
-  porKm: [{ desde: 0, valor: 950 }, { desde: 15, valor: 855 }, { desde: 30, valor: 760 }, { desde: 100, valor: 665 }],
+  // Ej: 40 km = 15 km a $760 + 15 km a $684 + 10 km a $608.
+  // Bajados 20% el 19-11-2026 (antes 950 / 855 / 760 / 665, alta 950, base 2.000, mínimo 8.000, tramo 5.000).
+  porKm: [{ desde: 0, valor: 760 }, { desde: 15, valor: 684 }, { desde: 30, valor: 608 }, { desde: 100, valor: 532 }],
 
   // En hora punta, o si el viaje parte, para o llega en un lugar concurrido, TODO el viaje va a este valor por km.
-  tarifaAlta: 950,
+  tarifaAlta: 760,
   horaPunta: ['07:00-10:00', '17:00-21:00'], // lunes a viernes (no festivos), hora de Chile
   // Rutas: se muestran 2 (la más rápida, recomendada, y la siguiente). Si la otra demora más, su viaje sube
   // este % de su tiempo extra (50 = la mitad), sin pasar del precio de la más rápida salvo por sus km.
@@ -29,7 +30,7 @@ export const CONFIG = {
   // Paradas: cada tramo después de una parada se cobra como un viaje aparte (su cargo base y sus km desde
   // el primer tramo de precio), y nunca menos que minimoTramo. Va escondido en el precio del viaje.
   // Además, con paradas nunca cuesta menos que el mismo viaje directo + minimoTramo por parada.
-  parada: { minimoTramo: 5000 },
+  parada: { minimoTramo: 4000 },
 
   // Nombre de tu tarifa: sale sobre el precio y en los mensajes («Tarifa XL · hasta 6 pasajeros»).
   // Según cuántos pasajeros van: hasta 4 = Tarifa Black (se compara con Uber Black), 5 o más = Tarifa XL (UberXL).
@@ -70,8 +71,8 @@ export const CONFIG = {
   ],
 
   // Precio del viaje = cargo base + los km. Nunca menos que el mínimo.
-  cargoBase: 2000,
-  minimo: 8000,
+  cargoBase: 1600,
+  minimo: 6400,
   // El precio del viaje se redondea hacia arriba a este múltiplo (1000 = $23.400 → $24.000).
   redondeo: 1000,
 
