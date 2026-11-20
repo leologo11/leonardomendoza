@@ -3,7 +3,7 @@
 const fresh = new URL(import.meta.url).search;
 // index.html can stay cached up to 10 min while this code is new: if they don't match, open the page again
 // with a new address (the cache can't serve it), once.
-const BUILD = '20261120b';
+const BUILD = '20261120c';
 if (document.querySelector('meta[name="build"]')?.content !== BUILD) {
   const u = new URL(location.href);
   if (u.searchParams.get('b') !== BUILD) { u.searchParams.set('b', BUILD); location.replace(u); await new Promise(() => {}); }
@@ -28,15 +28,38 @@ document.title = `${CONFIG.nombre} · Cotiza tu viaje`;
 // (if it's missing, the drawing stays).
 const stage = $('stage');
 const drive = () => { stage.classList.remove('go'); void stage.offsetWidth; stage.classList.add('go'); };
-stage.addEventListener('click', drive);
-if (CONFIG.foto) {
+if (central) destinations();
+else if (CONFIG.foto) {
+  stage.addEventListener('click', drive);
   const img = new Image();
   img.alt = CONFIG.vehiculo;
   // The photo faces left, so it comes in from the right.
   img.onload = () => { $('car-svg').replaceWith(img); stage.classList.add('rev', 'photo-car'); drive(); };
   img.onerror = drive;
   img.src = CONFIG.foto;
-} else drive();
+} else { stage.addEventListener('click', drive); drive(); }
+// Muve front page: instead of the van, photos of destinations that change by themselves (CONFIG.central.destinos).
+// Tapping one with a place puts it as the destination; the photo credits go at the bottom of the page.
+function destinations() {
+  const list = CONFIG.destinos || [];
+  stage.className = 'stage dest';
+  stage.removeAttribute('title');
+  stage.innerHTML = list.map(d => `<figure class="slide"><img src="${new URL(d.foto, import.meta.url)}" alt="" loading="lazy"><figcaption>${d.nombre}${d.lat ? '<span>Cotizar →</span>' : ''}</figcaption></figure>`).join('');
+  const slides = [...stage.children];
+  let at = 0;
+  const show = i => { slides[at]?.classList.remove('on'); at = (i + slides.length) % slides.length; slides[at]?.classList.add('on'); };
+  show(0);
+  slides[0]?.querySelector('img').removeAttribute('loading');
+  let timer = setInterval(() => show(at + 1), 4500);
+  stage.addEventListener('click', () => {
+    const d = list[at];
+    if (!d?.lat) { show(at + 1); clearInterval(timer); timer = setInterval(() => show(at + 1), 4500); return; }
+    $('to').value = d.nombre;
+    choose('to', { lat: d.lat, lng: d.lng, label: d.nombre });
+    $('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+  if (CONFIG.creditos) document.querySelector('main').insertAdjacentHTML('beforeend', `<p class="small">Fotos: ${CONFIG.creditos}</p>`);
+}
 // Passengers and bags: the 3rd row folds down, so the more passengers, the fewer big bags fit (CONFIG.maletas).
 const SEATS = Math.max(...Object.keys(CONFIG.maletas).map(Number));
 const maxBags = pax => CONFIG.maletas[pax] ?? 0;

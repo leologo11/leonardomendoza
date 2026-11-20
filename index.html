@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<meta name="build" content="20261120b">
+<meta name="build" content="20261120c">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Cotiza tu viaje</title>
 <meta name="description" content="Cotiza y reserva tu traslado privado en Jetour X70 de 6 pasajeros.">
@@ -118,11 +118,22 @@ main { max-width: 560px; margin: 0 auto; padding: 16px 16px 48px; }
 /* The photo is 976×547: at 340 px wide it's 190 px tall, so it always fits whole in the 236 px stage. */
 .photo-car .car { width: min(76%, 340px); margin-left: calc(min(76%, 340px) / -2); bottom: 6%; }
 .photo-car { height: 236px; }
+/* Muve front page: destination photos instead of the van (app.js, destinations()). */
+.stage.dest { height: 210px; margin-top: 16px; }
+.dest .slide { position: absolute; inset: 0; margin: 0; opacity: 0; transition: opacity 1s ease; }
+.dest .slide.on { opacity: 1; }
+.dest .slide img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.dest .slide.on img { animation: slowZoom 6s linear both; }
+@keyframes slowZoom { from { transform: scale(1) } to { transform: scale(1.08) } }
+.dest figcaption { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px;
+  padding: 36px 20px 14px; background: linear-gradient(transparent, rgba(0, 0, 0, .78)); font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+.dest figcaption span { flex: none; font-size: 0.8rem; font-weight: 600; padding: 5px 12px; border-radius: 999px; background: #0052ff; }
 @media (prefers-reduced-motion: reduce) {
   .go .car, .rev.go .car { animation: carFadeIn .45s .1s ease-out both !important; }
   .go .car-body, .go .wheel, .go .road-dash, .go .sweep, .go .impact, .go .sline, .go .dust { animation: none !important; }
   .go .sweep { opacity: 0; }
   .go .beam { animation: none; opacity: 1; }
+  .dest .slide.on img { animation: none; }
 }
 /* Capacity inside the hero: "👥 6 pasajeros · 🧳 hasta 5 maletas". */
 .cap { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; animation: fadeUp .6s .4s ease-out both; }

@@ -99,6 +99,16 @@ export const CONFIG = {
     resenas: '',
     whatsapp: '56981430340',
     lejos: null,
+    // Fotos arriba (cambian solas). Con lat/lng: al tocarla queda como destino. Fotos en img/dest.
+    destinos: [
+      { nombre: 'Aeropuerto', foto: 'img/dest/aeropuerto.jpg', lat: -33.39665, lng: -70.7939 },
+      { nombre: 'Viña del Mar', foto: 'img/dest/vina.jpg', lat: -33.0146, lng: -71.5530 },
+      { nombre: 'Valparaíso', foto: 'img/dest/valparaiso.jpg', lat: -33.0393, lng: -71.6273 },
+      { nombre: 'Cajón del Maipo', foto: 'img/dest/cajon.jpg', lat: -33.6417, lng: -70.3519 },
+      { nombre: 'Valle Nevado', foto: 'img/dest/valle-nevado.jpg', lat: -33.3570, lng: -70.2490 },
+      { nombre: 'Santiago', foto: 'img/dest/santiago.jpg' },
+    ],
+    creditos: 'Phillip Capper (aeropuerto, CC BY 2.0), Jimmy Baikovicius (Valle Nevado, CC BY-SA 2.0) y Unsplash vía Wikimedia Commons (CC0).',
   },
 
   // Solo para ti (modo conductor): tus gastos para saber cuánto te queda.
