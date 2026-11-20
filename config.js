@@ -55,8 +55,10 @@ export const CONFIG = {
   madrugada: { horario: '00:00-06:00', recargoPct: 20 },
 
   // Botones rápidos bajo «¿Dónde te recojo?» y «¿A dónde vas?»: un toque y queda ese lugar.
+  // buscar: si el cliente elige en el buscador un lugar con una de estas palabras, a menos de 3 km,
+  // queda este punto (así «Aeropuerto Internacional… (SCL)» va siempre a la terminal nacional).
   rapidos: [
-    { nombre: 'Aeropuerto', lat: -33.39665, lng: -70.7939 }, // Terminal 1 Nacional, Armando Cortínez Oriente 1704
+    { nombre: 'Aeropuerto', lat: -33.39665, lng: -70.7939, buscar: ['aeropuerto', 'arturo merino', 'scl', 'terminal 1', 'terminal 2'] }, // Terminal 1 Nacional, Armando Cortínez Oriente 1704
   ],
 
   // Lugares concurridos: nombre, posición y radio en metros alrededor.

@@ -1,6 +1,13 @@
 // The page's own code is loaded fresh on every visit (see index.html), and so are the settings and
 // the TAG code: a phone never keeps an old version.
 const fresh = new URL(import.meta.url).search;
+// index.html can stay cached up to 10 min while this code is new: if they don't match, open the page again
+// with a new address (the cache can't serve it), once.
+const BUILD = '20261120a';
+if (document.querySelector('meta[name="build"]')?.content !== BUILD) {
+  const u = new URL(location.href);
+  if (u.searchParams.get('b') !== BUILD) { u.searchParams.set('b', BUILD); location.replace(u); await new Promise(() => {}); }
+}
 const { CONFIG } = await import(`./config.js${fresh}`);
 const { routeTolls } = await import(`./tag.js${fresh}`);
 import { HOLIDAYS } from './data/tollRates.js';
@@ -61,6 +68,11 @@ $('round').addEventListener('change', e => $('return-row').classList.toggle('hid
 // me: where the driver leaves from (driver mode only).
 const picked = { from: null, to: null, me: null };
 function choose(which, place) {
+  // A search result that is a quick place (e.g. any "Aeropuerto … SCL" near it) becomes that quick place.
+  if (place && which !== 'me') {
+    const q = (CONFIG.rapidos || []).find(r => r.nombre !== place.label && r.buscar?.some(w => place.label.toLowerCase().includes(w)) && meters(place, r) < 3000);
+    if (q) { place = { lat: q.lat, lng: q.lng, label: q.nombre }; $(which).value = q.nombre; }
+  }
   picked[which] = place;
   $(`${which}-chosen`).textContent = place ? `✓ ${place.label}` : '';
   $(`${which}-results`).innerHTML = '';
