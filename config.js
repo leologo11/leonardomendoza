@@ -90,6 +90,17 @@ export const CONFIG = {
   // Suma el TAG y los peajes estimados al total.
   sumarPeajes: true,
 
+  // Portada de Muve (conductores.muveapp.cl): el mismo cotizador, sin conductor fijo. Las solicitudes llegan
+  // a este WhatsApp y tú se la pasas al conductor que corresponda. Mismos precios, sin recargo por lejanía.
+  central: {
+    nombre: 'Muve Traslados',
+    vehiculo: 'Autos y camionetas · hasta 6 pasajeros',
+    foto: '',
+    resenas: '',
+    whatsapp: '56981430340',
+    lejos: null,
+  },
+
   // Solo para ti (modo conductor): tus gastos para saber cuánto te queda.
   rendimientoKmL: 10, // km por litro de tu Jetour
   precioBencina: 1300, // $ por litro

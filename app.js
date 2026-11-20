@@ -3,12 +3,16 @@
 const fresh = new URL(import.meta.url).search;
 // index.html can stay cached up to 10 min while this code is new: if they don't match, open the page again
 // with a new address (the cache can't serve it), once.
-const BUILD = '20261120a';
+const BUILD = '20261120b';
 if (document.querySelector('meta[name="build"]')?.content !== BUILD) {
   const u = new URL(location.href);
   if (u.searchParams.get('b') !== BUILD) { u.searchParams.set('b', BUILD); location.replace(u); await new Promise(() => {}); }
 }
 const { CONFIG } = await import(`./config.js${fresh}`);
+// The Muve front page (conductores.muveapp.cl) runs this same code with <meta name="perfil" content="central">:
+// no driver of its own, the request goes to the dispatcher's WhatsApp (CONFIG.central replaces those settings).
+const central = document.querySelector('meta[name="perfil"]')?.content === 'central';
+if (central) Object.assign(CONFIG, CONFIG.central);
 const { routeTolls } = await import(`./tag.js${fresh}`);
 import { HOLIDAYS } from './data/tollRates.js';
 import { clStartOfDay, clDay, clMinOfDay, clWeekday } from './data/clTime.js';
@@ -55,7 +59,7 @@ $('pax').addEventListener('change', () => {
   if (tier() !== lastTier) $('form').requestSubmit(); else { $('tier').textContent = tierText(); uberBox(); }
 });
 fitBags();
-$('cap').innerHTML = `<span>${SEATS} pasajeros</span><span>Hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">Guardar contacto</a>`;
+$('cap').innerHTML = `<span>${SEATS} pasajeros</span><span>Hasta ${maxBags(1)} maletas</span>${central ? '' : '<a href="contacto.vcf">Guardar contacto</a>'}`;
 
 // Default: today, next full hour (Chile time).
 const now = Date.now(), nextHour = Math.min(23, Math.floor(clMinOfDay(now) / 60) + 1);
@@ -478,7 +482,7 @@ function priceWay(go, home, start, back, fastest, via = stopPlaces()) {
   const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
   const minimum = CONFIG.minimo * k(0);
   // Far pickup: the km from the driver's base to the pickup, after the free ones (set before pricing: awayKm).
-  const far = Math.max(0, awayKm - CONFIG.lejos.gratisKm) * CONFIG.lejos.porKm;
+  const far = CONFIG.lejos ? Math.max(0, awayKm - CONFIG.lejos.gratisKm) * CONFIG.lejos.porKm : 0;
   const trip = Math.ceil((Math.max(minimum, byKm) + far) / CONFIG.redondeo) * CONFIG.redondeo;
   const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
   const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
@@ -619,7 +623,7 @@ $('book').onclick = () => {
   for (const c of q.tolls.flatMap(t => t.items)) roads.set(c.road, (roads.get(c.road) || 0) + c.price);
   const tag = [...roads].map(([r, a]) => `${r} ${money(a)}`).join(' · ');
   const text = [
-    `Hola ${CONFIG.nombre.split(' ')[0]}, quiero reservar un viaje.`,
+    central ? 'Hola Muve, quiero reservar un viaje.' : `Hola ${CONFIG.nombre.split(' ')[0]}, quiero reservar un viaje.`,
     !!who && `*${who}*`,
     '',
     `📍 *Desde:* ${picked.from.label}`,
@@ -627,7 +631,7 @@ $('book').onclick = () => {
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
-    `🚙 ${tierText()} · ${CONFIG.vehiculo}`,
+    `🚙 ${tierText()}${central ? '' : ` · ${CONFIG.vehiculo}`}`,
     q.options.length > 1 && `🛣️ Ruta: ${wayName(q, q.sel || 0).replace(' · recomendada', '').toLowerCase()}${q.desc ? ` por ${q.desc}` : ''} (${Math.round(q.min)} min)`,
     '',
     `💵 *Total: ${money(q.total)}*`,
@@ -695,7 +699,7 @@ const driver = params.has('yo') || store.get('conductor') === '1';
 if (driver) $('vehicle').textContent += ' · modo conductor';
 // Every visit opens on the welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
 // Not when the link carries a trip ("Ver viaje" from a booking): that one goes straight to the quote.
-if (!(short.length >= 7 || params.has('o'))) {
+if (!(short.length >= 7 || params.has('o') || central)) {
   const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
   $('w-title').textContent = CONFIG.nombre;
   $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
