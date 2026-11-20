@@ -494,9 +494,9 @@ $('form').addEventListener('submit', async e => {
     try { ways = await googleWays(pts, start); } catch { ways = await osrmWays(pts); }
     ways = pickWays(ways);
     const home = round ? await route(picked.to, picked.from) : null;
-    // Two ways: the fastest (first, chosen, recommended) and the next one. The other costs at most what the
-    // fastest does, unless its own km make it dearer.
-    const options = ways.slice(0, 2).map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '' }));
+    // Only the fastest way (Leonardo, 19-11-2026). Google's alternatives are still asked for, to find it.
+    // (With more ways, the others would cost at most what the fastest does, unless their own km make it dearer.)
+    const options = ways.slice(0, 1).map(go => ({ ...priceWay(go, home, start, back, ways[0].duration), desc: go.desc || '' }));
     for (const o of options.slice(1)) {
       const plain = priceWay(o.legs[0], home, start, back, o.legs[0].duration).total, cap = Math.max(plain, options[0].total);
       if (o.total > cap) { o.trip -= o.total - cap; o.total = cap; if (cap === options[0].total) o.why += ' (tope: el precio de la más rápida)'; }
