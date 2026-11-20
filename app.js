@@ -38,6 +38,10 @@ function fitBags() {
   $('bags-hint').textContent = `Con ${plural(pax, 'pasajero', 'pasajeros')} caben hasta ${plural(max, 'maleta grande', 'maletas grandes')}${max < maxBags(1) ? ' (con asientos de la 3.ª fila arriba)' : ''}, más bolsos de mano.`;
 }
 $('pax').addEventListener('change', fitBags);
+// The fare by passengers (CONFIG.tarifas): up to 4 Black, 5 or more XL.
+const tier = () => CONFIG.tarifas.find(t => +$('pax').value <= t.hasta) || CONFIG.tarifas.at(-1);
+const tierText = () => `${tier().nombre} · hasta ${tier().hasta} pasajeros`;
+$('pax').addEventListener('change', () => { if (quote) { $('tier').textContent = tierText(); uberBox(); } });
 fitBags();
 $('cap').innerHTML = `<span>${SEATS} pasajeros</span><span>Hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">Guardar contacto</a>`;
 
@@ -504,7 +508,7 @@ $('form').addEventListener('submit', async e => {
     if (fixed > 0 && !usedFixed) { usedFixed = true; setPrice(fixed); }
     if (driver) {
       $('driver').classList.remove('hidden'); $('me-lines').innerHTML = '';
-      $('uber').value = ''; $('uber-out').classList.add('hidden');
+      $('uber').value = ''; $('uber-out').classList.add('hidden'); uberBox();
       // Navigation from where I am (the apps use the phone's GPS) to the pickup, then pickup → destination.
       const ll = p => `${p.lat},${p.lng}`, a = picked.from, b = picked.to;
       $('nav-pick-g').href = `https://www.google.com/maps/dir/?api=1&destination=${ll(a)}&travelmode=driving`;
@@ -546,7 +550,7 @@ function show() {
   const n = stopPlaces().length;
   // The client sees time and stops; km and how it was priced only in driver mode.
   $('summary').textContent = `${driver ? `${q.km.toFixed(1)} km · ` : ''}${q.round ? 'ida y vuelta · ' : ''}${n ? `${plural(n, 'parada', 'paradas')} · ` : ''}${h ? `${h} h ` : ''}${m} min de viaje`;
-  $('tier').textContent = `${CONFIG.tarifaNombre} · hasta ${SEATS} pasajeros`;
+  $('tier').textContent = tierText();
   $('total').textContent = money(q.total);
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
@@ -592,7 +596,7 @@ $('book').onclick = () => {
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
-    `🚙 ${CONFIG.tarifaNombre} · ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`,
+    `🚙 ${tierText()} · ${CONFIG.vehiculo}`,
     q.options.length > 1 && `🛣️ Ruta: ${wayName(q, q.sel || 0).replace(' · recomendada', '').toLowerCase()}${q.desc ? ` por ${q.desc}` : ''} (${Math.round(q.min)} min)`,
     '',
     `💵 *Total: ${money(q.total)}*`,
@@ -677,11 +681,11 @@ const fuel = km => km / CONFIG.rendimientoKmL * CONFIG.precioBencina;
 // Where I leave from: the phone's GPS (locate), or typed / dragged by hand.
 const locateMe = () => locate('me', 'Mi ubicación');
 $('me-btn').onclick = locateMe;
-// ── Uber XL comparison (driver only): type Uber's price, get CONFIG.uberDescuentoPct cheaper (down to $500),
+// ── Uber comparison (driver only, Black or XL by passengers): type Uber's price, get CONFIG.uberDescuentoPct cheaper (down to $500),
 // use it as the price (TAG included) and send it to the client.
 let usedFixed = false;
 function setPrice(total) {
-  quote = { ...quote, total, trip: Math.max(0, total - quote.toll), fixed: true, why: `precio a mano (Uber XL −${CONFIG.uberDescuentoPct}%)` };
+  quote = { ...quote, total, trip: Math.max(0, total - quote.toll), fixed: true, why: `precio a mano (${tier().uber} −${CONFIG.uberDescuentoPct}%)` };
   show();
   if (driver && picked.me) driverCalc();
 }
@@ -689,6 +693,14 @@ const uberSuggest = () => {
   const u = +$('uber').value.replace(/\D/g, '');
   return u >= 1000 ? { u, s: Math.floor((u * (1 - CONFIG.uberDescuentoPct / 100)) / 500) * 500 } : null;
 };
+// The Uber box: its label, and a link that opens Uber with this same trip (pickup and drop-off) to see the price.
+function uberBox() {
+  $('uber-label').textContent = `Precio de ${tier().uber} (míralo en Uber)`;
+  if (!picked.from || !picked.to) return;
+  const u = new URLSearchParams({ action: 'setPickup', 'pickup[latitude]': picked.from.lat, 'pickup[longitude]': picked.from.lng, 'pickup[nickname]': picked.from.label, 'dropoff[latitude]': picked.to.lat, 'dropoff[longitude]': picked.to.lng, 'dropoff[nickname]': picked.to.label });
+  $('uber-open').href = `https://m.uber.com/ul/?${u}`;
+  if ($('uber').value) $('uber').dispatchEvent(new Event('input'));
+}
 $('uber').addEventListener('input', () => {
   const x = uberSuggest(), out = $('uber-lines');
   $('uber-out').classList.toggle('hidden', !x || !quote);
@@ -696,7 +708,7 @@ $('uber').addEventListener('input', () => {
   const normal = quote.options[quote.sel || 0].total;
   out.innerHTML = '';
   const line = (a, b, cls = '') => { const li = document.createElement('li'); li.className = cls; li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; out.append(li); };
-  line('Uber XL', money(x.u));
+  line(tier().uber, money(x.u));
   line(`Tu precio sugerido (−${CONFIG.uberDescuentoPct}%, TAG incluido)`, money(x.s), 'strong');
   line(`Tu precio normal ${money(normal)}`, x.s < normal ? `${money(normal - x.s)} menos` : `${money(x.s - normal)} más`, 'sub');
 });
@@ -713,7 +725,7 @@ $('uber-send').onclick = () => {
     ...stopPlaces().map((s, i) => `🛑 *Parada ${i + 1}:* ${s.label}`),
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
-    `🚙 ${CONFIG.tarifaNombre} · ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`,
+    `🚙 ${tierText()} · ${CONFIG.vehiculo}`,
     '',
     `💵 *Total: ${money(q.total)}*${q.toll ? ' (TAG incluido)' : ''}`,
     '',

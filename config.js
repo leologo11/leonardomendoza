@@ -32,8 +32,12 @@ export const CONFIG = {
   parada: { minimoTramo: 5000 },
 
   // Nombre de tu tarifa: sale sobre el precio y en los mensajes («Tarifa XL · hasta 6 pasajeros»).
-  tarifaNombre: 'Tarifa XL',
-  // Modo conductor: escribes el precio de Uber XL y te sugiere este % más barato (redondeado hacia abajo a $500).
+  // Según cuántos pasajeros van: hasta 4 = Tarifa Black (se compara con Uber Black), 5 o más = Tarifa XL (UberXL).
+  tarifas: [
+    { hasta: 4, nombre: 'Tarifa Black', uber: 'Uber Black' },
+    { hasta: 6, nombre: 'Tarifa XL', uber: 'UberXL' },
+  ],
+  // Modo conductor: escribes el precio de Uber (Black o XL) y te sugiere este % más barato (redondeado hacia abajo a $500).
   uberDescuentoPct: 10,
 
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
