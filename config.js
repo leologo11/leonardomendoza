@@ -31,6 +31,11 @@ export const CONFIG = {
   // Además, con paradas nunca cuesta menos que el mismo viaje directo + minimoTramo por parada.
   parada: { minimoTramo: 5000 },
 
+  // Nombre de tu tarifa: sale sobre el precio y en los mensajes («Tarifa XL · hasta 6 pasajeros»).
+  tarifaNombre: 'Tarifa XL',
+  // Modo conductor: escribes el precio de Uber XL y te sugiere este % más barato (redondeado hacia abajo a $500).
+  uberDescuentoPct: 10,
+
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
   // (también el cargo base y el mínimo). Todos los días, hora de Chile.
   madrugada: { horario: '00:00-06:00', recargoPct: 20 },

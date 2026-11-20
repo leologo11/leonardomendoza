@@ -499,8 +499,12 @@ $('form').addEventListener('submit', async e => {
     const want = +(params.get('r') || 0), sel = want < options.length ? want : 0;
     quote = { ...options[sel], round, start, back, options, sel };
     show();
+    // A link sent with a price set by hand (&p=, the Uber XL comparison) keeps that price the first time.
+    const fixed = +params.get('p');
+    if (fixed > 0 && !usedFixed) { usedFixed = true; setPrice(fixed); }
     if (driver) {
       $('driver').classList.remove('hidden'); $('me-lines').innerHTML = '';
+      $('uber').value = ''; $('uber-out').classList.add('hidden');
       // Navigation from where I am (the apps use the phone's GPS) to the pickup, then pickup → destination.
       const ll = p => `${p.lat},${p.lng}`, a = picked.from, b = picked.to;
       $('nav-pick-g').href = `https://www.google.com/maps/dir/?api=1&destination=${ll(a)}&travelmode=driving`;
@@ -542,6 +546,7 @@ function show() {
   const n = stopPlaces().length;
   // The client sees time and stops; km and how it was priced only in driver mode.
   $('summary').textContent = `${driver ? `${q.km.toFixed(1)} km · ` : ''}${q.round ? 'ida y vuelta · ' : ''}${n ? `${plural(n, 'parada', 'paradas')} · ` : ''}${h ? `${h} h ` : ''}${m} min de viaje`;
+  $('tier').textContent = `${CONFIG.tarifaNombre} · hasta ${SEATS} pasajeros`;
   $('total').textContent = money(q.total);
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };
@@ -587,6 +592,7 @@ $('book').onclick = () => {
     `🏁 *Hasta:* ${picked.to.label}`,
     `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
     `👥 ${plural(pax, 'pasajero', 'pasajeros')} · ${plural(bags, 'maleta', 'maletas')}`,
+    `🚙 ${CONFIG.tarifaNombre} · ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`,
     q.options.length > 1 && `🛣️ Ruta: ${wayName(q, q.sel || 0).replace(' · recomendada', '').toLowerCase()}${q.desc ? ` por ${q.desc}` : ''} (${Math.round(q.min)} min)`,
     '',
     `💵 *Total: ${money(q.total)}*`,
@@ -610,7 +616,7 @@ function tripLink() {
   if ($('round').checked) v.push(stamp($('rdate').value, $('rtime').value || $('time').value));
   // Stops in order: &s=lat,lng;lat,lng
   const s = stopPlaces().map(c).join(';');
-  return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}${quote?.sel ? `&r=${quote.sel}` : ''}`;
+  return `${location.origin}${location.pathname}?v=${v.join(',')}${s ? `&s=${s}` : ''}${quote?.sel ? `&r=${quote.sel}` : ''}${quote?.fixed ? `&p=${quote.total}` : ''}`;
 }
 const params = new URLSearchParams(location.search);
 const short = (params.get('v') || '').split(',');
@@ -671,6 +677,51 @@ const fuel = km => km / CONFIG.rendimientoKmL * CONFIG.precioBencina;
 // Where I leave from: the phone's GPS (locate), or typed / dragged by hand.
 const locateMe = () => locate('me', 'Mi ubicación');
 $('me-btn').onclick = locateMe;
+// ── Uber XL comparison (driver only): type Uber's price, get CONFIG.uberDescuentoPct cheaper (down to $500),
+// use it as the price (TAG included) and send it to the client.
+let usedFixed = false;
+function setPrice(total) {
+  quote = { ...quote, total, trip: Math.max(0, total - quote.toll), fixed: true, why: `precio a mano (Uber XL −${CONFIG.uberDescuentoPct}%)` };
+  show();
+  if (driver && picked.me) driverCalc();
+}
+const uberSuggest = () => {
+  const u = +$('uber').value.replace(/\D/g, '');
+  return u >= 1000 ? { u, s: Math.floor((u * (1 - CONFIG.uberDescuentoPct / 100)) / 500) * 500 } : null;
+};
+$('uber').addEventListener('input', () => {
+  const x = uberSuggest(), out = $('uber-lines');
+  $('uber-out').classList.toggle('hidden', !x || !quote);
+  if (!x || !quote) return;
+  const normal = quote.options[quote.sel || 0].total;
+  out.innerHTML = '';
+  const line = (a, b, cls = '') => { const li = document.createElement('li'); li.className = cls; li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; out.append(li); };
+  line('Uber XL', money(x.u));
+  line(`Tu precio sugerido (−${CONFIG.uberDescuentoPct}%, TAG incluido)`, money(x.s), 'strong');
+  line(`Tu precio normal ${money(normal)}`, x.s < normal ? `${money(normal - x.s)} menos` : `${money(x.s - normal)} más`, 'sub');
+});
+$('uber-use').onclick = () => { const x = uberSuggest(); if (x && quote) setPrice(x.s); };
+$('uber-send').onclick = () => {
+  const x = uberSuggest();
+  if (!x || !quote) return;
+  setPrice(x.s);
+  const q = quote;
+  const text = [
+    'Hola, te dejo la cotización del viaje:',
+    '',
+    `📍 *Desde:* ${picked.from.label}`,
+    ...stopPlaces().map((s, i) => `🛑 *Parada ${i + 1}:* ${s.label}`),
+    `🏁 *Hasta:* ${picked.to.label}`,
+    `🗓️ ${fmtWhen(q.start)}${q.round ? ` · vuelta ${fmtWhen(q.back)}` : ''}`,
+    `🚙 ${CONFIG.tarifaNombre} · ${CONFIG.vehiculo}, hasta ${SEATS} pasajeros`,
+    '',
+    `💵 *Total: ${money(q.total)}*${q.toll ? ' (TAG incluido)' : ''}`,
+    '',
+    `Para reservar: ${tripLink()}`,
+  ].join('\n');
+  window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+};
+
 async function driverCalc() {
   const me = picked.me, out = $('me-lines');
   if (!quote || !me) return;
