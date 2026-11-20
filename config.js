@@ -45,6 +45,11 @@ export const CONFIG = {
   // Modo conductor: escribes el precio de Uber (Black o XL) y te sugiere este % más barato (redondeado hacia abajo a $500).
   uberDescuentoPct: 10,
 
+  // Recargo por recogida lejos de tu base (el cliente no lo ve, va dentro del viaje): los km por calle desde la
+  // base hasta donde lo recoges, pasados los gratisKm, se cobran a porKm cada uno. Ej: a 15 km = 10 × $200 = $2.000.
+  // La base es un punto aproximado de tu zona (redondeado a ~1 km a propósito: esta página es pública).
+  lejos: { base: { lat: -33.49, lng: -70.60 }, gratisKm: 5, porKm: 200 },
+
   // Recargo de madrugada: si el viaje (o la vuelta) sale en este horario, ese tramo cuesta este % más
   // (también el cargo base y el mínimo). Todos los días, hora de Chile.
   madrugada: { horario: '00:00-06:00', recargoPct: 20 },

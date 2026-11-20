@@ -436,6 +436,13 @@ function fitAll() {
 
 // Price of one way (and the way back, if any): km by distance or at the high rate, night surcharge, and
 // a longer way than the fastest pays CONFIG.tiempoExtraPct of its extra time.
+// Road km from the driver's base (CONFIG.lejos.base) to the pickup; straight line × 1.3 if the router fails.
+let awayKm = 0;
+async function pickupAway() {
+  const b = CONFIG.lejos?.base;
+  if (!b) return 0;
+  try { return (await route(b, picked.from)).distance / 1000; } catch { return (meters(b, picked.from) * 1.3) / 1000; }
+}
 function priceWay(go, home, start, back, fastest, via = stopPlaces()) {
   const legs = home ? [go, home] : [go];
   const tolls = legs.map((r, i) => routeTolls(r.geometry.coordinates, durations(r), i ? back : start, nodesOf(r)));
@@ -458,13 +465,16 @@ function priceWay(go, home, start, back, fastest, via = stopPlaces()) {
   const k = i => (night[i] ? extra : 1) * (i ? 1 : 1 + slower) * fare;
   const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
   const minimum = CONFIG.minimo * k(0);
-  const trip = Math.ceil(Math.max(minimum, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
+  // Far pickup: the km from the driver's base to the pickup, after the free ones (set before pricing: awayKm).
+  const far = Math.max(0, awayKm - CONFIG.lejos.gratisKm) * CONFIG.lejos.porKm;
+  const trip = Math.ceil((Math.max(minimum, byKm) + far) / CONFIG.redondeo) * CONFIG.redondeo;
   const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
   const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
     + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '')
     + (fare > 1 ? ` + ${tier().nombre} ${tier().recargoPct}%` : '')
     + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '')
-    + (n ? ` + ${n} ${n === 1 ? 'parada' : 'paradas'}: cada tramo como viaje aparte` : '');
+    + (n ? ` + ${n} ${n === 1 ? 'parada' : 'paradas'}: cada tramo como viaje aparte` : '')
+    + (far ? ` + recogida a ${awayKm.toFixed(0)} km de tu base: ${money(far)}` : '');
   return { km, min, trip, toll, total: trip + toll, legs, tolls, why, goToll: tolls[0].total };
 }
 // Choosing another way: no new search, just its price.
@@ -490,6 +500,7 @@ $('form').addEventListener('submit', async e => {
   try {
     // Going: up to 3 ways, through the stops. Coming back (round trip): straight home, the same for all.
     const pts = [picked.from, ...stopPlaces(), picked.to];
+    awayKm = await pickupAway();
     let ways;
     try { ways = await googleWays(pts, start); } catch { ways = await osrmWays(pts); }
     ways = pickWays(ways);
