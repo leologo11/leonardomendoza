@@ -41,7 +41,12 @@ $('pax').addEventListener('change', fitBags);
 // The fare by passengers (CONFIG.tarifas): up to 4 Black, 5 or more XL.
 const tier = () => CONFIG.tarifas.find(t => +$('pax').value <= t.hasta) || CONFIG.tarifas.at(-1);
 const tierText = () => `${tier().nombre} · hasta ${tier().hasta} pasajeros`;
-$('pax').addEventListener('change', () => { if (quote) { $('tier').textContent = tierText(); uberBox(); } });
+// Changing between Black and XL changes the price: quote again.
+let lastTier = null;
+$('pax').addEventListener('change', () => {
+  if (!quote) return;
+  if (tier() !== lastTier) $('form').requestSubmit(); else { $('tier').textContent = tierText(); uberBox(); }
+});
 fitBags();
 $('cap').innerHTML = `<span>${SEATS} pasajeros</span><span>Hasta ${maxBags(1)} maletas</span><a href="contacto.vcf">Guardar contacto</a>`;
 
@@ -448,13 +453,16 @@ function priceWay(go, home, start, back, fastest, via = stopPlaces()) {
   const slower = Math.max(0, go.duration / fastest - 1) * CONFIG.tiempoExtraPct / 100;
   // Night: that leg (and, going at night, the base charge and the minimum) cost recargoPct more.
   const night = legs.map((r, i) => isNight(i ? back : start)), extra = 1 + CONFIG.madrugada.recargoPct / 100;
-  const k = i => (night[i] ? extra : 1) * (i ? 1 : 1 + slower);
+  // Tarifa XL (5 or more passengers) costs CONFIG.tarifas' recargoPct more, the whole trip.
+  const fare = 1 + (tier().recargoPct || 0) / 100;
+  const k = i => (night[i] ? extra : 1) * (i ? 1 : 1 + slower) * fare;
   const byKm = CONFIG.cargoBase * k(0) + prices.reduce((s, p, i) => s + p.amount * k(i), 0);
   const minimum = CONFIG.minimo * k(0);
   const trip = Math.ceil(Math.max(minimum, byKm) / CONFIG.redondeo) * CONFIG.redondeo;
   const toll = CONFIG.sumarPeajes ? tolls.reduce((s, t) => s + t.total, 0) : 0;
   const why = (byKm < minimum ? 'tarifa mínima' : [...new Set(prices.map(p => p.why ? `${p.why}: ${money(CONFIG.tarifaAlta)}/km` : 'por distancia'))].join(' y '))
     + (night.some(Boolean) ? ` + madrugada ${CONFIG.madrugada.recargoPct}%${night.length > 1 && !night.every(Boolean) ? (night[0] ? ' (ida)' : ' (vuelta)') : ''}` : '')
+    + (fare > 1 ? ` + ${tier().nombre} ${tier().recargoPct}%` : '')
     + (slower > 0.005 ? ` + ${Math.round(slower * 100)}% por más tiempo` : '')
     + (n ? ` + ${n} ${n === 1 ? 'parada' : 'paradas'}: cada tramo como viaje aparte` : '');
   return { km, min, trip, toll, total: trip + toll, legs, tolls, why, goToll: tolls[0].total };
@@ -550,7 +558,7 @@ function show() {
   const n = stopPlaces().length;
   // The client sees time and stops; km and how it was priced only in driver mode.
   $('summary').textContent = `${driver ? `${q.km.toFixed(1)} km · ` : ''}${q.round ? 'ida y vuelta · ' : ''}${n ? `${plural(n, 'parada', 'paradas')} · ` : ''}${h ? `${h} h ` : ''}${m} min de viaje`;
-  $('tier').textContent = tierText();
+  $('tier').textContent = tierText(); lastTier = tier();
   $('total').textContent = money(q.total);
   $('lines').innerHTML = '';
   const line = (a, b) => { const li = document.createElement('li'); li.innerHTML = '<span></span><span></span>'; li.children[0].textContent = a; li.children[1].textContent = b; $('lines').append(li); };

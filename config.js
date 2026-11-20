@@ -34,9 +34,10 @@ export const CONFIG = {
 
   // Nombre de tu tarifa: sale sobre el precio y en los mensajes («Tarifa XL · hasta 6 pasajeros»).
   // Según cuántos pasajeros van: hasta 4 = Tarifa Black (se compara con Uber Black), 5 o más = Tarifa XL (UberXL).
+  // recargoPct = cuánto más cuesta el viaje con esa tarifa (el TAG no cambia).
   tarifas: [
-    { hasta: 4, nombre: 'Tarifa Black', uber: 'Uber Black' },
-    { hasta: 6, nombre: 'Tarifa XL', uber: 'UberXL' },
+    { hasta: 4, nombre: 'Tarifa Black', uber: 'Uber Black', recargoPct: 0 },
+    { hasta: 6, nombre: 'Tarifa XL', uber: 'UberXL', recargoPct: 10 },
   ],
   // Modo conductor: escribes el precio de Uber (Black o XL) y te sugiere este % más barato (redondeado hacia abajo a $500).
   uberDescuentoPct: 10,
