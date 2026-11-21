@@ -3,7 +3,7 @@
 const fresh = new URL(import.meta.url).search;
 // index.html can stay cached up to 10 min while this code is new: if they don't match, open the page again
 // with a new address (the cache can't serve it), once.
-const BUILD = '20261120c';
+const BUILD = '20261121a';
 if (document.querySelector('meta[name="build"]')?.content !== BUILD) {
   const u = new URL(location.href);
   if (u.searchParams.get('b') !== BUILD) { u.searchParams.set('b', BUILD); location.replace(u); await new Promise(() => {}); }
@@ -723,9 +723,15 @@ if (driver) $('vehicle').textContent += ' · modo conductor';
 // Every visit opens on the welcome card: quote, save the contact (contacto.vcf) or write on WhatsApp.
 // Not when the link carries a trip ("Ver viaje" from a booking): that one goes straight to the quote.
 if (!(short.length >= 7 || params.has('o') || central)) {
-  const close = () => { $('welcome').classList.add('hidden'); history.replaceState(null, '', location.pathname); };
+  const close = () => {
+    if ($('welcome').classList.contains('closing')) return;
+    $('welcome').classList.add('closing');
+    setTimeout(() => $('welcome').classList.add('hidden'), 280);
+    history.replaceState(null, '', location.pathname);
+  };
   $('w-title').textContent = CONFIG.nombre;
-  $('w-sub').textContent = `${CONFIG.vehiculo} · hasta ${SEATS} pasajeros · ${maxBags(1)} maletas`;
+  // Chips under the name: "Jetour X70 blanca", "6 pasajeros", "5 maletas".
+  $('w-sub').replaceChildren(...[CONFIG.vehiculo, `${SEATS} pasajeros`, `${maxBags(1)} maletas`].map(t => Object.assign(document.createElement('span'), { textContent: t })));
   if (CONFIG.resenas) { $('w-review').href = CONFIG.resenas; $('w-review').classList.remove('hidden'); }
   $('w-wa').href = `https://wa.me/${CONFIG.whatsapp}?text=${encodeURIComponent(`Hola ${CONFIG.nombre.split(' ')[0]}, quiero cotizar un viaje.`)}`;
   $('w-close').onclick = close;
